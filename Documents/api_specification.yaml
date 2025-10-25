@@ -1,0 +1,769 @@
+openapi: 3.0.3
+info:
+  title: Speak2MD API
+  version: "0.1.0"
+  description: |
+    API для сервиса автоматической расшифровки аудио и генерации конспектов в Markdown.
+    Поддерживает загрузку аудио, отслеживание прогресса, получение результата,
+    управление транскриптами и базовую аутентификацию. 
+    **Примечания:** 
+    - Поддерживаемые форматы входных файлов: mp3, m4a, wav.
+    - Базовые лимиты MVP: размер файла до 50 МБ, длительность до 120 минут.
+servers:
+  - url: https://api.speak2md.example.com
+    description: Прод
+  - url: http://localhost:8000
+    description: Локальная разработка
+tags:
+  - name: Jobs
+    description: Создание задачи и получение статуса/результата
+  - name: WebSocket
+    description: Уведомления о прогрессе в реальном времени
+  - name: Auth
+    description: Регистрация, вход и обновление токена
+  - name: Transcripts
+    description: Работа с транскриптами пользователя
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+      example: "9f9a9f8c-4f31-4f7a-9c9b-21b2a80d2b65"
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: "Недопустимый формат файла"
+    UploadResponse:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id:
+          $ref: '#/components/schemas/UUID'
+        status:
+          type: string
+          enum: [processing, ready, error]
+          example: processing
+    JobStatusResponse:
+      type: object
+      required: [status, progress]
+      properties:
+        status:
+          type: string
+          description: Текущий статус задачи
+          enum: [processing, ready, error]
+          example: processing
+        progress:
+          type: integer
+          description: Прогресс обработки в процентах
+          minimum: 0
+          maximum: 100
+          example: 42
+    AuthRegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          example: StrongPassw0rd!
+        full_name:
+          type: string
+          example: Алексей Иванов
+    AuthLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          example: StrongPassw0rd!
+    AuthTokensResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          description: JWT access-токен
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: Токен для обновления access-токена
+          example: "refresh_0a1b2c3d..."
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          description: Время жизни access-токена (секунды)
+          example: 3600
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          example: "refresh_0a1b2c3d..."
+    UserProfile:
+      type: object
+      required: [id, email, plan]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        plan:
+          type: string
+          description: Текущий тарифный план
+          example: free
+        usage:
+          type: object
+          description: Потребление квот (за период)
+          properties:
+            minutes_used:
+              type: integer
+              example: 12
+            jobs_active:
+              type: integer
+              example: 1
+    TranscriptSummary:
+      type: object
+      required: [id, title, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        title:
+          type: string
+          example: "Стенограмма совещания 2025-09-15"
+        created_at:
+          type: string
+          format: date-time
+        language:
+          type: string
+          example: "ru"
+        duration_sec:
+          type: integer
+          example: 3600
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["meeting", "roadmap"]
+    TranscriptDetail:
+      allOf:
+        - $ref: '#/components/schemas/TranscriptSummary'
+        - type: object
+          properties:
+            content_url:
+              type: string
+              description: URL для скачивания Markdown
+              example: "https://api.speak2md.example.com/files/abc/result.md"
+            json_url:
+              type: string
+              description: URL для скачивания JSON структуры (если доступна)
+              example: "https://api.speak2md.example.com/files/abc/result.json"
+    TagsUpdateRequest:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["finance", "okrs"]
+    DeleteResponse:
+      type: object
+      properties:
+        deleted:
+          type: boolean
+          example: true
+    # WebSocket event envelopes
+    WsEvent:
+      type: object
+      required: [event, data]
+      properties:
+        event:
+          type: string
+          enum: [progress, status_change, completed, error]
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/WsProgressData'
+            - $ref: '#/components/schemas/WsStatusChangeData'
+            - $ref: '#/components/schemas/WsCompletedData'
+            - $ref: '#/components/schemas/WsErrorData'
+    WsProgressData:
+      type: object
+      required: [progress]
+      properties:
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 73
+    WsStatusChangeData:
+      type: object
+      required: [old_status, new_status]
+      properties:
+        old_status:
+          type: string
+          enum: [processing, ready, error]
+        new_status:
+          type: string
+          enum: [processing, ready, error]
+    WsCompletedData:
+      type: object
+      properties:
+        result_url:
+          type: string
+          example: "https://api.speak2md.example.com/api/result/9f9a9f8c-4f31-4f7a-9c9b-21b2a80d2b65"
+    WsErrorData:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: "Ошибка распознавания"
+paths:
+  /api/upload:
+    post:
+      tags: [Jobs]
+      summary: Загрузить аудиофайл для создания задачи
+      description: |
+        Принимает аудио-файл и создаёт задачу обработки. Возвращает идентификатор задачи.
+        Поддерживаемые форматы: mp3, m4a, wav.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                language:
+                  type: string
+                  description: Предпочитаемый язык распознавания (например, "ru" или "en")
+                diarization:
+                  type: boolean
+                  description: Включить определение говорящих (если поддерживается)
+      responses:
+        "200":
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+              examples:
+                default:
+                  value:
+                    job_id: "9f9a9f8c-4f31-4f7a-9c9b-21b2a80d2b65"
+                    status: "processing"
+        "400":
+          description: Ошибка запроса (неверный формат/параметры)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Неавторизован (если требуется авторизация)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Не найден ресурс
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/status/{job_id}:
+    get:
+      tags: [Jobs]
+      summary: Получить статус обработки задачи
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        "200":
+          description: Текущий статус задачи
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+              examples:
+                processing:
+                  value: {status: processing, progress: 18}
+                ready:
+                  value: {status: ready, progress: 100}
+                error:
+                  value: {status: error, progress: 0}
+        "400":
+          description: Некорректный идентификатор задачи
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Задача не найдена
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/result/{job_id}:
+    get:
+      tags: [Jobs]
+      summary: Скачать результат обработки (Markdown или JSON)
+      description: |
+        По умолчанию возвращает Markdown-файл. Можно указать `format=json` или заголовок `Accept: application/json`.
+        Для скачивания как файла можно воспользоваться заголовком `Content-Disposition` на стороне сервера.
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: format
+          in: query
+          description: Формат ответа
+          required: false
+          schema:
+            type: string
+            enum: [markdown, json]
+      responses:
+        "200":
+          description: Успех
+          content:
+            text/markdown:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+                description: JSON-представление результата (если доступно)
+                example:
+                  title: "Стенограмма совещания"
+                  sections:
+                    - heading: "Итоги"
+                      bullets: ["Релиз сдвинут на 2 недели", "Добавить VAD улучшения"]
+        "400":
+          description: Некорректные параметры
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Результат не найден
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/ws/{job_id}:
+    get:
+      tags: [WebSocket]
+      summary: Подключиться к WebSocket для событий по задаче
+      description: |
+        Эндпоинт для WebSocket-подключения (ws/wss). Сервер отправляет события:
+        - `progress` — объект с полем `progress` (0–100)
+        - `status_change` — переход статуса
+        - `completed` — завершено; может содержать `result_url`
+        - `error` — описание ошибки
+
+        Пример сообщения:
+        ```json
+        { "event": "progress", "data": { "progress": 73 } }
+        ```
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        "200":
+          description: Апгрейд соединения до WebSocket (handshake)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WsEvent'
+          x-websocket: true
+        "400":
+          description: Некорректный идентификатор
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Задача не найдена
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthRegisterRequest'}
+      responses:
+        "200":
+          description: Пользователь создан
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserProfile'}
+        "400":
+          description: Некорректные данные
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Не найден ресурс
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthLoginRequest'}
+      responses:
+        "200":
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthTokensResponse'}
+        "400":
+          description: Некорректные данные
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление access-токена
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RefreshRequest'}
+      responses:
+        "200":
+          description: Новый access-токен выдан
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthTokensResponse'}
+        "400":
+          description: Некорректный запрос/токен
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Не найден ресурс
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/me:
+    get:
+      tags: [Auth]
+      summary: Получить профиль текущего пользователя и квоты
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserProfile'}
+        "400":
+          description: Ошибка запроса
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Не найден
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/transcripts:
+    get:
+      tags: [Transcripts]
+      summary: Получить список транскриптов текущего пользователя
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: project
+          in: query
+          schema: { type: string }
+          description: Фильтр по проекту/папке
+        - name: tag
+          in: query
+          schema: { type: string }
+          description: Фильтр по тегу
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Полнотекстовый поиск
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Список транскриптов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    example: 2
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TranscriptSummary'
+        "400":
+          description: Ошибка запроса
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Не найдено
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/transcripts/{id}:
+    get:
+      tags: [Transcripts]
+      summary: Получить транскрипт (Markdown или метаданные + ссылки)
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [markdown, json, meta]
+          description: Выбор формата. `markdown` — вернуть Markdown; `json` — JSON; `meta` — только метаданные и ссылки
+      responses:
+        "200":
+          description: Успех
+          content:
+            text/markdown:
+              schema: { type: string, format: binary }
+            application/json:
+              schema: { $ref: '#/components/schemas/TranscriptDetail' }
+        "400":
+          description: Ошибка запроса
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Транскрипт не найден/нет доступа
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    delete:
+      tags: [Transcripts]
+      summary: Удалить транскрипт
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      responses:
+        "200":
+          description: Удалено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteResponse' }
+        "400":
+          description: Ошибка запроса
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Не найдено/нет доступа
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/transcripts/{id}/tags:
+    post:
+      tags: [Transcripts]
+      summary: Добавить/заменить теги транскрипта
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TagsUpdateRequest' }
+      responses:
+        "200":
+          description: Теги обновлены
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TranscriptDetail' }
+        "400":
+          description: Ошибка запроса
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "401":
+          description: Неавторизован
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "404":
+          description: Транскрипт не найден/нет доступа
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+security: []
