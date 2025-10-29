@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DATA_DIR=${DATA_DIR}
+      - MOCK_PIPELINE=${MOCK_PIPELINE}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - data:${DATA_DIR}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DATA_DIR=${DATA_DIR}
+      - MOCK_PIPELINE=${MOCK_PIPELINE}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: ["python", "-m", "app.workers.worker"]
+    volumes:
+      - data:${DATA_DIR}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  data:
