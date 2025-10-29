@@ -3,12 +3,27 @@ from ..schemas import StatusResponse
 
 router = APIRouter()
 
-@router.get("/status/{job_id}", response_model=StatusResponse, responses={501: {"description": "Not Implemented"}})
-def get_status_stub(job_id: str):
-    """Каркас-эндпоинт статуса - реализовать позже."""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Status endpoint is not implemented yet")
+# ВРЕМЕННОЕ ХРАНИЛИЩЕ - позже заменим на базу данных
+from ..shared_storage import tasks
 
-@router.get("/status/{job_id}/sse")
-async def stream_status_stub(job_id: str):
-    """Каркас-SSE - реализовать позже."""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="SSE endpoint is not implemented yet")
+
+@router.get("/status/{job_id}", response_model=StatusResponse)
+def get_status(job_id: str):
+    """Получить статус задачи по ID"""
+
+    # Ищем задачу в нашем временном хранилище
+    task = tasks.get(job_id)
+
+    if not task:
+        # Если задача не найдена - возвращаем ошибку 404
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+
+    # Возвращаем данные в формате StatusResponse
+    return {
+        "job_id": task["id"],
+        "status": task["status"],
+        "progress": task["progress"]
+    }
