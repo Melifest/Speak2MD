@@ -7,6 +7,7 @@ router = APIRouter()
 
 # Временное хранилище (используем то же, что в status.py)
 from ..shared_storage import tasks
+from ..shared_storage import update_task_progress
 
 
 @router.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
@@ -56,6 +57,8 @@ async def upload_audio(file: UploadFile = File(...)):
         "filename": file.filename,
         "file_size": file_size
     }
+
+    update_task_progress(job_id, 0, "processing")
 
     print(f"✅ Создана задача {job_id} для файла {file.filename} ({file_size} байт)")
 
