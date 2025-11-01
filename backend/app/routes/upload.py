@@ -7,6 +7,7 @@ router = APIRouter()
 
 # Временное хранилище (используем то же, что в status.py)
 from ..shared_storage import tasks
+from ..services import storage
 
 
 @router.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
@@ -47,6 +48,9 @@ async def upload_audio(file: UploadFile = File(...)):
 
     # 5. Создаем уникальный ID задачи
     job_id = str(uuid.uuid4())
+    #5.1 сохраним исходный файл как original.<ext>
+    original_name = f"original{file_extension}"
+    storage.save_bytes(job_id, original_name, content)
 
     # 6. Сохраняем информацию о задаче
     tasks[job_id] = {
