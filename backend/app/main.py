@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from prometheus_fastapi_instrumentator import Instrumentator
+from .services import storage
 
 from .routes.upload import router as upload_router
 from .routes.status import router as status_router
@@ -41,8 +42,8 @@ app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 @app.on_event("startup")
 def on_startup():
-    # Каркас: без инициализации БД, только базовый лог при старте
-    logger.info("Speak2MD skeleton started. DATA_DIR=%s", os.getenv("DATA_DIR"))
+    # Каркас: без инициализации БД, только базовый лог при старте (добавлен реальный путь)
+    logger.info("Speak2MD skeleton started. DATA_DIR=%s", storage.DATA_DIR)
 
 @app.get("/health", response_class=HTMLResponse)
 def health():
