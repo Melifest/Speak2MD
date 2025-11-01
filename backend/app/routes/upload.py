@@ -1,13 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 import uuid
 import os
+import asyncio
 from ..schemas import UploadResponse, ErrorResponse
 
 router = APIRouter()
 
 # Временное хранилище (используем то же, что в status.py)
-from ..shared_storage import tasks
+from ..shared_storage import tasks, update_task_progress
 from ..services import storage
+from ..services.processing_simulator import simulate_processing
 
 
 @router.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
@@ -61,7 +63,12 @@ async def upload_audio(file: UploadFile = File(...)):
         "file_size": file_size
     }
 
+
+    update_task_progress(job_id, 0, "processing", "File uploaded, starting processing")
+
     print(f"✅ Создана задача {job_id} для файла {file.filename} ({file_size} байт)")
+
+    asyncio.create_task(simulate_processing(job_id))
 
     # 7. Возвращаем ответ пользователю
     return UploadResponse(
