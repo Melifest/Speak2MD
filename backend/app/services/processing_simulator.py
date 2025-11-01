@@ -1,6 +1,8 @@
 import asyncio
 from ..shared_storage import update_task_progress
-
+# ВНИМАНИЕ - это вспомогательный файл без реального пайплайна, позже НУЖНО заменить на реальные вызовы пайпалйна
+# Сейчас upload.py явно использует simulate_processing(job_id) . Если его удалить, надо обеспечить, что реальная 
+# обработка будет вызывать update_task_progress , иначе прогресса не будет вообще.
 
 async def simulate_processing(job_id: str):
     """Имитирует процесс обработки файла с обновлением прогресса"""
