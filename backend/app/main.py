@@ -38,7 +38,7 @@ Instrumentator().instrument(app).expose(app)
 
 # Статика (пока простой фронт)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
-app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
 
 @app.on_event("startup")
 def on_startup():
