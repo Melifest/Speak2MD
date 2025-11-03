@@ -1,4 +1,5 @@
 import subprocess
+import shutil
 import logging
 from pathlib import Path
 
@@ -9,8 +10,27 @@ def convert_to_wav_16k_mono(input_path: Path, output_path: Path, timeout_sec: in
     Использует системный ffmpeg. Логи ошибок пишутся в общий логгер.
     return - путь к вывходному файлу
     '''
+    # определение исполняемог файла ffmpeg
+    # приоритетно используем системный ffmpeg из apt (/usr/bin/ffmpeg), чтобы избежать
+    # случайного выбора несовместимого бинарника из /usr/local/bin
+    ffmpeg_cmd = None
+    usr_bin_ffmpeg = Path("/usr/bin/ffmpeg")
+    if usr_bin_ffmpeg.exists():
+        ffmpeg_cmd = str(usr_bin_ffmpeg)
+    else:
+        # если системный ffmpeg не найден, ищем в PATH
+        ffmpeg_cmd = shutil.which("ffmpeg")
+    if not ffmpeg_cmd:
+        try:
+            import imageio_ffmpeg
+            ffmpeg_cmd = imageio_ffmpeg.get_ffmpeg_exe()
+            logger.info("Using bundled ffmpeg from imageio-ffmpeg: %s", ffmpeg_cmd)
+        except Exception:
+            logger.error("ffmpeg not found in PATH and imageio-ffmpeg unavailable")
+            raise RuntimeError("FFmpeg not found. Install ffmpeg or add imageio-ffmpeg.")
+
     cmd = [
-        "ffmpeg",
+        ffmpeg_cmd,
         "-hide_banner",
         "-nostdin",
         "-y",

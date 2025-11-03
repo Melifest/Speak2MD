@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from .services import storage
+from .db import Base, engine
 
 from .routes.upload import router as upload_router
 from .routes.status import router as status_router
@@ -42,8 +43,14 @@ app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static"
 
 @app.on_event("startup")
 def on_startup():
-    # Каркас: без инициализации БД, только базовый лог при старте (добавлен реальный путь)
-    logger.info("Speak2MD skeleton started. DATA_DIR=%s", storage.DATA_DIR)
+    # Инициализация бд, создаём таблицы, if нет + базовый лог
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("DB initialized. Speak2MD started. DATA_DIR=%s", storage.DATA_DIR)
+    except Exception as e:
+        logger.exception("DB initialization failed: %s", e)
+        # продолжаем старт, но загрузка/обработка может упасть при использовании БД
+        logger.warning("Continuing without confirmed DB init; uploads may fail.")
 
 @app.get("/health", response_class=HTMLResponse)
 def health():
