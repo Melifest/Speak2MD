@@ -1,7 +1,9 @@
 import asyncio
+import json
+from ..shared_storage import tasks, update_task_progress
+from ..services.storage import save_bytes
 import logging
 from pathlib import Path
-from ..shared_storage import update_task_progress
 from . import storage
 from .audio_converter import convert_to_wav_16k_mono
 # ВНИМАНИЕ - это вспомогательный файл без реального пайплайна, позже НУЖНО заменить на реальные вызовы пайпалйна
@@ -34,6 +36,12 @@ async def simulate_processing(job_id: str):
         update_task_progress(job_id, 0, "error", f"Conversion failed: {e}")
         return
 
+    # Получаем данные задачи
+    task_data = tasks.get(job_id)
+    if not task_data:
+        print(f"❌ Задача {job_id} не найдена в хранилище")
+        return
+
     # Этапы обработки с сообщениями
     stages = [
         (40, "Speech recognition started"),
@@ -49,4 +57,89 @@ async def simulate_processing(job_id: str):
         # Обновляем прогресс
         status = "processing" if progress < 100 else "completed"
         update_task_progress(job_id, progress, status, message)
-        logger.info("Progress updated for %s: %s%% - %s", job_id, progress, message)
+
+        print(f"📊 Progress updated for {job_id}: {progress}% - {message}")
+
+    if progress == 100:  # После завершения обработки
+        await create_test_results(job_id, task_data)
+
+
+async def create_test_results(job_id: str, task_data: dict):
+    """Создает тестовые файлы результатов для демонстрации"""
+
+    # Создаем тестовый Markdown результат
+    markdown_content = f"""# Расшифровка: {task_data['filename']}
+
+## Основные тезисы
+
+- Аудиофайл успешно обработан
+- Размер файла: {task_data['file_size']} байт
+- Качество распознавания: 95%
+- ID задачи: {job_id}
+
+## Содержание
+
+1. **Введение** - основные моменты встречи
+2. **Ключевые решения** - принятые решения  
+3. **Action items** - задачи на следующий период
+
+### Детализация
+
+- **Начало встречи**: 10:00
+- **Участники**: 5 человек
+- **Основные темы**: план разработки, технические вопросы
+
+> Обработано сервисом Speak2MD
+> Время обработки: 2.5 секунды
+"""
+
+    # Создаем тестовый JSON результат
+    json_content = {
+        "job_id": job_id,
+        "filename": task_data['filename'],
+        "file_size": task_data['file_size'],
+        "status": "completed",
+        "sections": [
+            {
+                "title": "Основные тезисы",
+                "content": [
+                    "Аудиофайл успешно обработан",
+                    f"Размер файла: {task_data['file_size']} байт",
+                    "Качество распознавания: 95%"
+                ]
+            },
+            {
+                "title": "Ключевые решения",
+                "content": [
+                    "Релиз запланирован на следующую неделю",
+                    "Добавить новую функциональность в API",
+                    "Оптимизировать процесс обработки аудио"
+                ]
+            },
+            {
+                "title": "Action Items",
+                "content": [
+                    "Завершить интеграцию с фронтендом",
+                    "Протестировать на различных аудиоформатах",
+                    "Подготовить документацию для пользователей"
+                ]
+            }
+        ],
+        "metadata": {
+            "processing_time": "2.5 секунды",
+            "service": "Speak2MD",
+            "version": "0.1.0"
+        }
+    }
+
+    # Сохраняем файлы результатов
+    try:
+        save_bytes(job_id, "result.md", markdown_content.encode('utf-8'))
+        save_bytes(job_id, "result.json", json.dumps(json_content, ensure_ascii=False, indent=2).encode('utf-8'))
+
+        print(f"✅ Результаты сохранены для задачи {job_id}")
+        print(f"   📄 result.md - {len(markdown_content)} символов")
+        print(f"   📊 result.json - {len(json.dumps(json_content))} символов")
+
+    except Exception as e:
+        print(f"❌ Ошибка при сохранении результатов для {job_id}: {e}")
