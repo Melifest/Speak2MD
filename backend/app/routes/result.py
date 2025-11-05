@@ -38,7 +38,8 @@ async def get_result(
             detail=f"Job {job_id} not found"
         )
 
-    if task["status"] != "completed":
+    # допускаем оба финальных статуса: completed (симулятор) + ready (реальный пайплайн)
+    if task["status"] not in {"completed", "ready"}:
         raise HTTPException(
             status_code=status.HTTP_425_TOO_EARLY,
             detail="Task is not completed yet"
@@ -47,6 +48,13 @@ async def get_result(
     # 3. Определяем путь к файлу результата
     filename = "result.md" if format == "markdown" else "result.json"
     result_path = path_for(job_id, filename)
+
+    # Для JSON поддерживаем артефакт из реального пайплайна: transcript.json
+    if format == "json" and not result_path.exists():
+        alt_path = path_for(job_id, "transcript.json")
+        if alt_path.exists():
+            result_path = alt_path
+            filename = "transcript.json"
 
     # 4. Проверяем что файл существует
     if not result_path.exists():
