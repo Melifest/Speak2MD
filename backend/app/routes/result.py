@@ -16,11 +16,10 @@ async def get_result(
         format: str = Query("markdown", regex="^(markdown|json)$")
 ):
     """
-    Get processing result for a job
-
-    - **job_id**: UUID of the processing job
-    - **format**: Result format - markdown or json
-    - **returns**: Processing result in requested format
+    Получить результат обработки для job
+  - job_id: UUID задания на обработку
+  - format: формат результата - markdown или json
+  - return: рзультат обработки в запрашиваемом формате
     """
 
     # 1. Валидация job_id
