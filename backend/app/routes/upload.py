@@ -22,15 +22,15 @@ async def upload_audio(file: UploadFile = File(...)):
     """
 
     # 1. Проверяем тип файла
-    allowed_types = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav']
+    allowed_types = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/webm', 'audio/ogg']
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Неподдерживаемый формат файла. Разрешены: MP3, M4A, WAV"
+            detail=f"Неподдерживаемый формат файла. Разрешены: MP3, M4A, WAV, WEBM, OGG"
         )
 
     # 2. Проверяем расширение файла (дополнительная проверка)
-    allowed_extensions = ['.mp3', '.m4a', '.wav']
+    allowed_extensions = ['.mp3', '.m4a', '.wav', '.webm', '.ogg']
     file_extension = os.path.splitext(file.filename)[1].lower()
 
     if file_extension not in allowed_extensions:

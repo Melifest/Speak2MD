@@ -1,9 +1,10 @@
 import os
 import logging
+import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from .services import storage
 from .db import Base, engine
@@ -52,6 +53,42 @@ def on_startup():
         # продолжаем старт, но загрузка/обработка может упасть при использовании БД
         logger.warning("Continuing without confirmed DB init; uploads may fail.")
 
+    # Фоновый прогрев модели ASR — не блокируем старт приложения и /health (заколебал залипать уже)
+    def _background_warmup():
+        try:
+            model_name = os.getenv("WHISPER_MODEL", "tiny")
+            download_root = os.getenv("WHISPER_CACHE_DIR") or os.getenv("DATA_DIR")
+            from faster_whisper import WhisperModel
+            logger.info(
+                "ASR warm-up (background): initializing WhisperModel('%s'), download_root=%s",
+                model_name,
+                download_root,
+            )
+            WhisperModel(model_name, device="cpu", compute_type="int8", download_root=download_root)
+            try:
+                (storage.DATA_DIR/".whisper_ready").write_text(model_name, encoding="utf-8")
+            except Exception:
+                pass
+            logger.info("ASR warm-up completed for model '%s'", model_name)
+        except Exception as e:
+            logger.warning("ASR warm-up skipped/failed: %s", e)
+
+    try:
+        sentinel = storage.DATA_DIR/".whisper_ready"
+        if not sentinel.exists():
+            threading.Thread(target=_background_warmup, daemon=True).start()
+            logger.info("ASR warm-up scheduled in background")
+    except Exception as e:
+        logger.warning("ASR warm-up scheduling failed: %s", e)
+
 @app.get("/health", response_class=HTMLResponse)
 def health():
     return "<pre>OK</pre>"
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    """Выдать фронт index.html на корневом маршруте."""
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    return HTMLResponse("<pre>Index not found</pre>", status_code=404)

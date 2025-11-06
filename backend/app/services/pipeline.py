@@ -4,7 +4,11 @@
 """
 
 import os, json, logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from multiprocessing import Process
 from pathlib import Path
+import wave
+from contextlib import closing
 from typing import Optional
 from . import storage
 from .audio_converter import convert_to_wav_16k_mono
@@ -36,6 +40,95 @@ def _write_markdown_artifacts(job_id: str, markdown: str, raw_text: Optional[str
         json.dump(payload, f, ensure_ascii=False, indent=2)
     return md_path, json_path
 
+def _transcribe_whisper_to_file(
+    wav_path: str,
+    model_name: str,
+    language: str,
+    download_root: Optional[str],
+    out_path: str,
+) -> None:
+    """В отдельном процессе: запуск Faster-Whisper и запись результата в файл.
+    Логи из дочернего процесса опускаем, чтобы не блокировать основной поток.
+    """
+    text = ""
+    try:
+        from faster_whisper import WhisperModel
+        model = WhisperModel(model_name, device="cpu", compute_type="int8", download_root=download_root)
+        segments, _ = model.transcribe(
+            wav_path,
+            language=language,
+            vad_filter=False,
+        )
+        text = " ".join([seg.text.strip() for seg in segments])
+    except Exception:
+        # Ошибки подавляем, в основном процессе обработаем пустой результат как фолбэк
+        text = ""
+    try:
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(text)
+    except Exception:
+        pass
+
+def _run_whisper_with_hard_timeout(
+    job_id: str,
+    wav_path: Path,
+    model_name: str,
+    timeout_sec: int,
+    download_root: Optional[str],
+    language: str,
+) -> str:
+    """Запуск Faster-Whisper в отдельном процессе с принудительным таймаутом.
+    Если за timeout_sec не завершился — процесс завершается и возвращается пустая строка.
+    """
+    tmp_out = storage.job_dir(job_id) / "whisper_out.txt"
+    try:
+        if tmp_out.exists():
+            tmp_out.unlink()
+    except Exception:
+        pass
+
+    p = Process(
+        target=_transcribe_whisper_to_file,
+        args=(str(wav_path), model_name, language, download_root, str(tmp_out)),
+    )
+    p.daemon = True
+    p.start()
+    p.join(timeout_sec)
+
+    if p.is_alive():
+        logger.warning("ASR Faster-Whisper exceeded %ss timeout; terminating", timeout_sec)
+        try:
+            p.terminate()
+        except Exception:
+            pass
+        p.join()
+        return ""
+
+    try:
+        with open(tmp_out, "r", encoding="utf-8") as f:
+            return (f.read() or "").strip()
+    except Exception:
+        return ""
+    finally:
+        try:
+            tmp_out.unlink()
+        except Exception:
+            pass
+
+def _estimate_wav_duration_sec(wav_path: Path) -> float | None:
+    """Оценить длительность WAV-файла в секундах.
+    Почему такое делаем - файлы могут быть разные, при аудио больше 30 мин все падало.
+    """
+    try:
+        with closing(wave.open(str(wav_path), "rb")) as w:
+            frames = w.getnframes()
+            rate = w.getframerate() or 0
+            if rate > 0:
+                return frames / float(rate)
+            return None
+    except Exception:
+        return None
+
 def _run_mock_pipeline(job_id: str, wav_path: Path) -> tuple[Path, Path]:
     # простой локальный мок, герерит текст и артефакты
     update_task_progress(job_id, 40, "processing", "Speech recognition (mock)")
@@ -53,31 +146,86 @@ def _run_real_pipeline(job_id: str, wav_path: Path) -> tuple[Path, Path]:
         speech_timestamps = []
 
         update_task_progress(job_id, 60, "processing", "ASR loading")
-        # Сначала пробуем PaddleSpeech, затем fallback на Faster-Whisper (CTranslate2)
+        # Сначала PaddleSpeech, затем fallback на Faster-Whisper + добавим логи (дебаг)
         raw_text: str = ""
+        use_paddlespeech = os.getenv("ENABLE_PADDLESPEECH", "false").lower() in {"1", "true", "yes", "on"}
+        #базовый минимум таймаут (if звук короткий)
+        base_asr_timeout = int(os.getenv("ASR_TIMEOUT_SEC", "60"))
+        # масштабирование таймаута от длительности, по умолчанию ×3 от длины WAV
+        duration_sec = _estimate_wav_duration_sec(wav_path)
+        factor = float(os.getenv("ASR_TIMEOUT_FACTOR", "3.0"))
+        if duration_sec is not None and duration_sec > 0:
+            scaled = int(duration_sec * max(factor, 1.0))
+            asr_timeout = max(base_asr_timeout, scaled)
+        else:
+            asr_timeout = base_asr_timeout
+        download_root = os.getenv("WHISPER_CACHE_DIR") or os.getenv("DATA_DIR")
+        model_name = os.getenv("WHISPER_MODEL", "tiny")
+        # Если модель ещё не прогрета, покажем статус и выполним краткий прогрев
         try:
+            sentinel = storage.DATA_DIR/".whisper_ready"
+            if not sentinel.exists():
+                update_task_progress(job_id, 65, "processing", "Скачиваем модель…")
+                from faster_whisper import WhisperModel
+                WhisperModel(model_name, device="cpu", compute_type="int8", download_root=download_root)
+                try:
+                    sentinel.write_text(model_name, encoding="utf-8")
+                except Exception:
+                    pass
+        except Exception as e_warm:
+            logger.warning("ASR model warm-up during job failed/skipped: %s", e_warm)
+
+        def _run_paddlespeech() -> str:
             from paddlespeech.cli.asr.infer import ASRExecutor
             asr = ASRExecutor()
-            update_task_progress(job_id, 70, "processing", "ASR running (PaddleSpeech)")
-            # для mvp пока распознаём целиком, без нарезки по vad сегментам
-            raw_text = asr(audio_file=str(wav_path)) or ""
-        except Exception as e_ps:
-            logger.warning("ASR PaddleSpeech failed, trying Faster-Whisper fallback: %s", e_ps)
+            return asr(audio_file=str(wav_path)) or ""
+
+        def _run_whisper(model_name: str) -> str:
+            from faster_whisper import WhisperModel
+            model = WhisperModel(model_name, device="cpu", compute_type="int8", download_root=download_root)
+            segments, info = model.transcribe(
+                str(wav_path),
+                language=os.getenv("LANGUAGE", "ru"),
+                vad_filter=False,
+            )
+            return " ".join([seg.text.strip() for seg in segments])
+        if use_paddlespeech:
+            ex = ThreadPoolExecutor(max_workers=1)
             try:
-                from faster_whisper import WhisperModel
-                model_name = os.getenv("WHISPER_MODEL", "base")
-                update_task_progress(job_id, 70, "processing", f"ASR running (Faster-Whisper {model_name})")
-                # CPU-only, avoid numpy/torch instability on Windows
-                model = WhisperModel(model_name, device="cpu", compute_type="int8")
-                segments, info = model.transcribe(
-                    str(wav_path),
-                    language=os.getenv("LANGUAGE", "ru"),
-                    vad_filter=False,
-                )
-                raw_text = " ".join([seg.text.strip() for seg in segments])
-            except Exception as e_w:
-                logger.warning("ASR Faster-Whisper failed, using stub text: %s", e_w)
-                raw_text = "Распознавание не удалось, используем заглушку"
+                update_task_progress(job_id, 70, "processing", "ASR running (PaddleSpeech)")
+                future = ex.submit(_run_paddlespeech)
+                raw_text = future.result(timeout=asr_timeout)
+            except FuturesTimeout:
+                logger.warning("ASR PaddleSpeech timeout after %ss; falling back to Faster-Whisper", asr_timeout)
+                try:
+                    future.cancel()
+                except Exception:
+                    pass
+                ex.shutdown(wait=False, cancel_futures=True)
+                raw_text = ""
+            except Exception as e_ps:
+                logger.warning("ASR PaddleSpeech failed, trying Faster-Whisper fallback: %s", e_ps)
+            finally:
+                try:
+                    ex.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+        else:
+            logger.info("PaddleSpeech disabled by config; using Faster-Whisper directly")
+
+        if not raw_text:
+            update_task_progress(job_id, 70, "processing", f"ASR running (Faster-Whisper {model_name})")
+            raw_text = _run_whisper_with_hard_timeout(
+                job_id,
+                wav_path,
+                model_name,
+                asr_timeout,
+                download_root,
+                os.getenv("LANGUAGE", "ru"),
+            )
+            if not raw_text:
+                logger.warning("ASR Faster-Whisper timeout or failure, using stub text")
+                raw_text = "Распознавание не удалось (timeout), используем заглушку"
         # Постпроцессинг через LLM (LM Studio на http://127.0.0.1:1234)
         try:
             from .llm_client import generate_markdown
