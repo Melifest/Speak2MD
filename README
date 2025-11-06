@@ -1,3 +1,89 @@
 # Speak2MD (MVP)
 
-Реализовать Readme в будущем 
+# Speak2MD — быстрый гайд для любимой и ничуть не ленивой команды 
+как запустить, что дергать, где артефакты.
+
+## Что это
+- Пайплайн: аудио → FFmpeg → ASR → LLM → Markdown (`result.md`).
+- Результат хранится в `DATA_DIR/<job_id>/result.md`, отдаётся через API.
+
+## Быстрый старт
+- Предпосылки: установлен Docker, LM Studio запущен на `localhost:1234` и загружена модель
+  `qwen3-4b-thinking-2507` (или обычная `qwen/qwen3-4b-2507`).
+- Запуск сервисов: `docker compose up -d --build api worker`
+- Проверка API: `GET http://localhost:8000/health` → `OK`
+
+### Настройки ASR (качество ↔ скорость)
+- По умолчанию PaddleSpeech отключён: используем `Faster‑Whisper` сразу. Включить можно флагом `ENABLE_PADDLESPEECH=true` (экспериментально).
+- Рекомендуемая модель по умолчанию: `WHISPER_MODEL=small` — лучше качество при приемлемой скорости на CPU.
+- Другие варианты: `tiny` (очень быстро, низкое качество), `base` (быстрее, качество чуть ниже), `medium` (лучше качество, медленнее), `large-v3` (максимум качества, очень тяжёлая на CPU).
+- Пример переменных (в `.env` или через compose):
+  - `ENABLE_PADDLESPEECH=false`
+  - `WHISPER_MODEL=small`
+  - `ASR_TIMEOUT_SEC=60` (базовый таймаут; при длинном аудио применяется динамическое увеличение)
+  - `ASR_TIMEOUT_FACTOR=3.0` (множитель динамического таймаута от длительности WAV)
+  - `WHISPER_CACHE_DIR=/app/data` (каталог кэша моделей Faster‑Whisper; ускоряет повторные запуски)
+
+## Сквозной прогон
+1) Загрузка аудио:
+   - Windows/PowerShell: используйте `curl.exe` и указывайте MIME.
+   - Пример: `curl.exe -s -X POST "http://localhost:8000/api/upload" -F "file=@backend/tests/EGE.mp3;type=audio/mpeg"`
+   - Ответ вернёт `job_id`.
+2) Статус: `curl.exe -s "http://localhost:8000/api/status/<job_id>"`
+3) Результат (Markdown): `curl.exe -s "http://localhost:8000/api/result/<job_id>?format=markdown" > result.md`
+   - Можно открыть в браузере: `http://localhost:8000/api/result/<job_id>?format=markdown`
+4) WS‑прогресс: `ws://localhost:8000/api/ws/<job_id>` — события `progress`, `completed`.
+
+## Где лежит результат
+- В коде: `backend/app/services/pipeline.py` → `md_path = base_dir/"result.md"`.
+- Физически: `DATA_DIR/<job_id>/result.md` и `transcript.json`.
+- В контейнере при значении по умолчанию: `/app/data/<job_id>/...`.
+- В `docker-compose.yml` подключён именованный том `data` к `${DATA_DIR}` — артефакты не видны в репозитории.
+- Если нужно видеть их на хосте: поменяйте монтирование на `./data:${DATA_DIR}`.
+
+## LLM (LM Studio)
+- Эндпоинт для контейнеров: `http://host.docker.internal:1234/v1`, для хоста: `http://localhost:1234/v1`.
+- Список моделей: `GET http://localhost:1234/v1/models`.
+- Рекомендуем отправлять JSON из файла (ОООООЧЕНЬ МНОГО проблем было из-за кавычек в PowerShell- жсон исправляет это):
+  - `payload.json`:
+    - `{ "model": "qwen3-4b-thinking-2507", "messages": [{ "role": "user", "content": "Сделай краткий конспект." }], "temperature": 0.3, "max_tokens": 2048 }`
+  - Команда:
+    - `curl.exe -s -X POST "http://localhost:1234/v1/chat/completions" -H "Content-Type: application/json" -H "Accept: application/json" -H "Authorization: Bearer lm-studio" --data-binary "@payload.json"`
+- Особенность reasoning‑моделей: финальный ответ иногда в `reasoning_content`. Наш клиент (`backend/app/services/llm_client.py`) делает фолбэк.
+
+## Переменные окружения (важное)
+- `DATA_DIR` — базовая папка артефактов (по умолчанию `./data`).
+- `LLM_BASE_URL` — `http://host.docker.internal:1234/v1`.
+- `LLM_MODEL` — например, `qwen3-4b-thinking-2507` или `qwen/qwen3-4b-2507`.
+- `LLM_MAX_TOKENS` — разумно держать `2048–4096`.
+- `LLM_TIMEOUT` — таймаут запроса к LLM (сек).
+- `WHISPER_MODEL` — модель ASR для Faster‑Whisper (`tiny/base/...`).
+- `ASR_TIMEOUT_SEC` — базовый таймаут распознавания (сек). Реальный таймаут = `max(ASR_TIMEOUT_SEC, длительность_в_сек × ASR_TIMEOUT_FACTOR)`.
+- `ASR_TIMEOUT_FACTOR` — множитель для динамического таймаута ASR (по умолчанию `3.0`). Например, для 30‑минутного аудио таймаут будет ≈ 90 минут.
+- `WHISPER_CACHE_DIR` — путь для кэша моделей Faster‑Whisper (по умолчанию берётся `DATA_DIR`).
+- `FFMPEG_TIMEOUT_SEC` — таймаут конвертации.
+- `MOCK_PIPELINE` — `true/false` для мок‑режима.
+- `LOG_LEVEL` — `INFO`/`DEBUG`.
+
+## Траблшутинг
+- `Unsupported file type` при `upload`: укажите MIME (`audio/mpeg` для `.mp3`).
+- `Bad Request` от LM Studio: формируйте JSON в файле и отправляйте `--data-binary`.
+- Статус стоит на `80%`: чаще всего запрос к LLM завис/упал — уменьшите `LLM_MAX_TOKENS`, проверьте логи.
+- `404 Result not found`: проверьте `job_id` и что статус `ready`.
+
+## Полезные команды
+- Логи API: `docker compose logs api --tail 200`
+- Просмотр артефактов тома (пример): `docker run --rm -v speak2md_data:/data busybox ls -R /data`
+- Копирование результата из контейнера (если `DATA_DIR=/app/data`):
+  - `docker cp speak2md-api-1:/app/data/<job_id>/result.md .`
+
+## Где смотреть спецификации
+- OpenAPI: `openapi/speak2md-mvp.yaml`
+- Детали API: `Documents/API_Documentation.md`
+
+## На что обратить внимание фронту
+- Получаем `job_id` из `POST /api/upload`, дальше слушаем WS `progress`.
+- При `ready` дергаем `GET /api/result/<job_id>?format=markdown` и рендерим.
+- Кнопки: “Открыть”/“Скачать”. Для скачивания можно добавить `Content-Disposition` (не обязательно на MVP).
+
+Если что-то непонятно или странно работает — пишем в рабочий чат телеги, приложите `job_id` и пару строк логов. помогу разобраться.
