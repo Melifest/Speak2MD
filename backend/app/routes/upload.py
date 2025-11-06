@@ -21,19 +21,36 @@ async def upload_audio(file: UploadFile = File(...)):
     Загружает аудиофайл и создает задачу на обработку
     """
 
-    # 1. Проверяем тип файла
+    # 1. проверка типп файла (нормализуем)
+    raw_content_type = (file.content_type or '').strip().lower()
+    normalized_content_type = raw_content_type.split(';', 1)[0].strip()
     allowed_types = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/webm', 'audio/ogg']
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Неподдерживаемый формат файла. Разрешены: MP3, M4A, WAV, WEBM, OGG"
-        )
+    if normalized_content_type not in allowed_types:
+        # разрешение неизвестного типа, если допустимо (на фаерфокс не получалось записать)
+        file_extension_check = os.path.splitext(file.filename)[1].lower()
+        allowed_extensions_check = ['.mp3', '.m4a', '.wav', '.webm', '.ogg']
+        if file_extension_check not in allowed_extensions_check:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Неподдерживаемый формат файла. Разрешены: MP3, M4A, WAV, WEBM, OGG"
+            )
 
-    # 2. Проверяем расширение файла (дополнительная проверка)
+    # 2. корректное расширение на основе content type + мягкая проверка расширения файла из имени
     allowed_extensions = ['.mp3', '.m4a', '.wav', '.webm', '.ogg']
+    content_type_to_ext = {
+        'audio/mpeg': '.mp3',
+        'audio/mp4': '.m4a',
+        'audio/wav': '.wav',
+        'audio/x-wav': '.wav',
+        'audio/webm': '.webm',
+        'audio/ogg': '.ogg',
+    }
     file_extension = os.path.splitext(file.filename)[1].lower()
+    content_extension = content_type_to_ext.get(normalized_content_type)
 
-    if file_extension not in allowed_extensions:
+    # if имя файла без допустимого расширения, но content-type поддерживаемый — продолжаем,
+    # иначе - жоско отклоняем.
+    if file_extension not in allowed_extensions and content_extension not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Неподдерживаемое расширение файла. Разрешены: {', '.join(allowed_extensions)}"
@@ -53,8 +70,10 @@ async def upload_audio(file: UploadFile = File(...)):
 
     # 5. Создаем уникальный ID задачи
     job_id = str(uuid.uuid4())
-    #5.1 сохраним исходный файл как original.<ext>
-    original_name = f"original{file_extension}"
+    #5.1 сохраним исходный файл как original.<ext>,
+    #    где <ext> определяется из content-type, а при его отсутствии — из имени
+    save_ext = content_extension or (file_extension if file_extension in allowed_extensions else '.wav')
+    original_name = f"original{save_ext}"
     storage.save_bytes(job_id, original_name, content)
 
     # 5.2 создание записи задачи в БД

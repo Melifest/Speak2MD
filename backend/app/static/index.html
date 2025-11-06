@@ -275,9 +275,38 @@ let mediaRecorder, recChunks=[], recStart=0, recT;
 btnRecord.addEventListener('click', async ()=>{
   if (!mediaRecorder || mediaRecorder.state==='inactive'){
     const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => recChunks.push(e.data);
-    mediaRecorder.onstop = ()=> { clearInterval(recT); recTimer.textContent=''; };
+    // Явно выбираем поддерживаемый MIME тип с фолбэками
+    let preferred = 'audio/webm;codecs=opus';
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(preferred)){
+      preferred = MediaRecorder && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : (MediaRecorder && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+    }
+    mediaRecorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
+    recChunks = [];
+    mediaRecorder.ondataavailable = e => { if(e.data && e.data.size>0) recChunks.push(e.data); };
+    // Blob+отправка только после полной остановки (включая финальный чанк)
+    mediaRecorder.onstop = ()=> {
+      clearInterval(recT); recTimer.textContent='';
+      let type = mediaRecorder.mimeType || (recChunks[0]?.type) || '';
+      if (!type) {
+        const ua = (navigator.userAgent || '').toLowerCase();
+        // В Firefox чаще всего контейнер OGG, если тип не установлен
+        if (ua.includes('firefox')) type = 'audio/ogg;codecs=opus';
+        else type = 'audio/webm;codecs=opus';
+      }
+      const blob = new Blob(recChunks, { type });
+      // выберем расширение
+      let ext = 'webm';
+      const mt = String(blob.type || '').toLowerCase();
+      if (mt.includes('ogg')) ext = 'ogg';
+      else if (mt.includes('webm')) ext = 'webm';
+      else if (mt.includes('wav')) ext = 'wav';
+      else if (mt.includes('mp4')) ext = 'm4a';
+      const file = new File([blob], `record.${ext}`, { type: blob.type });
+      recChunks = [];
+      startUpload(file);
+    };
     mediaRecorder.start(); recStart = Date.now();
     btnRecord.setAttribute('aria-pressed','true'); recLabel.textContent='Идёт запись…';
     recT = setInterval(()=>{
@@ -287,8 +316,6 @@ btnRecord.addEventListener('click', async ()=>{
   }else{
     mediaRecorder.stop();
     btnRecord.setAttribute('aria-pressed','false'); recLabel.textContent='Запись';
-    const blob = new Blob(recChunks, {type: mediaRecorder.mimeType || 'audio/webm'}); recChunks=[];
-    startUpload(new File([blob],'record.webm',{type: blob.type}));
   }
 });
 
