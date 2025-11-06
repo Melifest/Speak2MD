@@ -25,10 +25,12 @@ services:
       - MOCK_PIPELINE=${MOCK_PIPELINE}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LLM_BASE_URL=http://host.docker.internal:1234/v1
-      - LLM_MODEL=${LLM_MODEL:-qwen/qwen3-4b-2507}
-      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-15000}
+      - LLM_MODEL=${LLM_MODEL:-qwen3-4b-thinking-2507}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-30000}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-240}
-      - WHISPER_MODEL=${WHISPER_MODEL:-tiny}
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - ASR_TIMEOUT_SEC=${ASR_TIMEOUT_SEC:-250}
+      - WHISPER_CACHE_DIR=${WHISPER_CACHE_DIR:-/app/data}
     volumes:
       - data:${DATA_DIR}
     depends_on:
@@ -47,10 +49,12 @@ services:
       - MOCK_PIPELINE=${MOCK_PIPELINE}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LLM_BASE_URL=http://host.docker.internal:1234/v1
-      - LLM_MODEL=${LLM_MODEL:-qwen/qwen3-4b-2507}
-      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-15000}
-      - LLM_TIMEOUT=${LLM_TIMEOUT:-240}
-      - WHISPER_MODEL=${WHISPER_MODEL:-tiny}
+      - LLM_MODEL=${LLM_MODEL:-qwen3-4b-thinking-2507}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-30000}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-300}
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - ASR_TIMEOUT_SEC=${ASR_TIMEOUT_SEC:-250}
+      - WHISPER_CACHE_DIR=${WHISPER_CACHE_DIR:-/app/data}
     command: ["python", "-m", "app.workers.worker"]
     volumes:
       - data:${DATA_DIR}

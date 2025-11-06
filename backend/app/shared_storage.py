@@ -34,13 +34,13 @@ def update_task_progress(task_id: str, progress: int, status: str = None, messag
     if message is not None:
         task["message"] = message
 
-        # подготавливаем для отправки
-        progress_data = {
-            "job_id": task_id,
-            "progress": progress,
-            "status": task.get("status"),
-            "message": message or f"Processing... {progress}%"
-        }
+    # подготавливаем для отправки (всегда формируем payload)
+    progress_data = {
+        "job_id": task_id,
+        "progress": progress,
+        "status": task.get("status"),
+        "message": (message or task.get("message") or f"Processing... {progress}%")
+    }
 
     # (в любом случае) уведомляем всех подключенных клиентов
     import asyncio

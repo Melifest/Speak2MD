@@ -13,6 +13,17 @@
 - Запуск сервисов: `docker compose up -d --build api worker`
 - Проверка API: `GET http://localhost:8000/health` → `OK`
 
+### Настройки ASR (качество ↔ скорость)
+- По умолчанию PaddleSpeech отключён: используем `Faster‑Whisper` сразу. Включить можно флагом `ENABLE_PADDLESPEECH=true` (экспериментально).
+- Рекомендуемая модель по умолчанию: `WHISPER_MODEL=small` — лучше качество при приемлемой скорости на CPU.
+- Другие варианты: `tiny` (очень быстро, низкое качество), `base` (быстрее, качество чуть ниже), `medium` (лучше качество, медленнее), `large-v3` (максимум качества, очень тяжёлая на CPU).
+- Пример переменных (в `.env` или через compose):
+  - `ENABLE_PADDLESPEECH=false`
+  - `WHISPER_MODEL=small`
+  - `ASR_TIMEOUT_SEC=60` (базовый таймаут; при длинном аудио применяется динамическое увеличение)
+  - `ASR_TIMEOUT_FACTOR=3.0` (множитель динамического таймаута от длительности WAV)
+  - `WHISPER_CACHE_DIR=/app/data` (каталог кэша моделей Faster‑Whisper; ускоряет повторные запуски)
+
 ## Сквозной прогон
 1) Загрузка аудио:
    - Windows/PowerShell: используйте `curl.exe` и указывайте MIME.
@@ -47,6 +58,9 @@
 - `LLM_MAX_TOKENS` — разумно держать `2048–4096`.
 - `LLM_TIMEOUT` — таймаут запроса к LLM (сек).
 - `WHISPER_MODEL` — модель ASR для Faster‑Whisper (`tiny/base/...`).
+- `ASR_TIMEOUT_SEC` — базовый таймаут распознавания (сек). Реальный таймаут = `max(ASR_TIMEOUT_SEC, длительность_в_сек × ASR_TIMEOUT_FACTOR)`.
+- `ASR_TIMEOUT_FACTOR` — множитель для динамического таймаута ASR (по умолчанию `3.0`). Например, для 30‑минутного аудио таймаут будет ≈ 90 минут.
+- `WHISPER_CACHE_DIR` — путь для кэша моделей Faster‑Whisper (по умолчанию берётся `DATA_DIR`).
 - `FFMPEG_TIMEOUT_SEC` — таймаут конвертации.
 - `MOCK_PIPELINE` — `true/false` для мок‑режима.
 - `LOG_LEVEL` — `INFO`/`DEBUG`.

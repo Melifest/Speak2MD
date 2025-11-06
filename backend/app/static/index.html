@@ -110,13 +110,13 @@
   .badge-ready{background:var(--success);color:#0D1117}
 
   /* Прогресс (липкий) */
-  .sticky{ position:sticky; top:72px; z-index:9; margin-top:16px }
-  .progress{height:8px;background:#21262D;border-radius:5px;overflow:hidden}
-  .bar{height:100%;width:0;background:linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);position:relative;transition:width .3s}
+  .sticky{ position:sticky; top:72px; z-index:12; margin-top:16px }
+  .progress{height:8px;background:#21262D;border-radius:5px;overflow:hidden;box-shadow: inset 0 0 0 1px rgba(255,255,255,.03)}
+  .bar{height:100%;width:0;background:linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);position:relative;transition:width .3s;box-shadow:0 0 0 1px rgba(255,255,255,.06) inset}
   .bar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);animation:shimmer 1.6s infinite}
 
   /* Markdown Preview */
-  .preview{display:none;margin-top:16px;background:#161B22;border:1px solid var(--border);border-radius:10px;padding:22px;white-space:pre-wrap}
+  .preview{display:none;margin-top:16px;background:#161B22;border:1px solid var(--border);border-radius:10px;padding:22px;white-space:pre-wrap;font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:14px; line-height:1.6; max-height:50vh; overflow:auto; box-shadow: 0 12px 32px rgba(0,0,0,.22)}
   .meta{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px}
 
   /* Микрофон: минималистичные "bars" во время записи */
@@ -125,11 +125,12 @@
   .barv:nth-child(2){animation-delay:.1s}.barv:nth-child(3){animation-delay:.2s}.barv:nth-child(4){animation-delay:.3s}.barv:nth-child(5){animation-delay:.4s}
 
   /* «Как это работает» */
-  .how{margin:72px 0}
+  /* Всегда поверх фонового грida (p5 canvas) */
+  .how{margin:72px 0; position:relative; z-index:2}
   .how{margin:72px 0; display:flex;flex-direction:column;align-items:center}
   .how h2{ text-align:center; }
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;justify-items:center;max-width:var(--container);width:100%;}
-  .card{background:#161B22;border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s}
+  .card{background:#161B22;border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1}
   .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(88,166,255,.15)}
 
   /* Анимации */
@@ -177,7 +178,7 @@
 
       <!-- Объединённая зона: загрузка + запись -->
       <label id="mix" class="dropmix" tabindex="0" aria-label="Загрузить аудиофайл или записать">
-        <input id="fileInput" type="file" accept=".mp3,.m4a,.wav" />
+        <input id="fileInput" type="file" accept=".mp3,.m4a,.wav,.webm,.ogg" />
         <div><strong>Перетащите файл сюда</strong> или <u>выберите</u>…</div>
         <div class="muted" style="margin-top:6px">…или нажмите «Запись» ниже</div>
       </label>
@@ -191,10 +192,11 @@
         <small id="recTimer" class="muted" aria-live="polite"></small>
       </div>
 
-      <!-- Липкий прогресс -->
-      <div id="statusBox" class="sticky" style="display:none">
+      <!-- Прогресс -->
+      <div id="statusBox" style="display:none; margin-top:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#161B22;border:1px solid var(--border);border-radius:10px;padding:12px">
-          <div id="statusText"><strong>Обработка…</strong> (VAD → ASR → Разметка)</div>
+          <div id="statusText" aria-live="polite"><strong>Обработка…</strong> (VAD → ASR → Разметка)</div>
+          <span id="pct" class="muted" aria-live="polite" style="margin-left:8px;min-width:42px;text-align:right">0%</span>
           <button id="cancelBtn" class="btn btn-ghost">Отменить</button>
         </div>
         <div class="progress" style="margin-top:8px"><div id="bar" class="bar"></div></div>
@@ -205,10 +207,11 @@
         <span class="badge badge-ready">Готово</span>
         <div class="row">
           <a id="dlMd" class="btn btn-primary" download>Скачать .md</a>
-          <a id="dlJson" class="btn btn-ghost">JSON</a>
+          <a id="dlJson" class="btn btn-ghost" download>JSON</a>
         </div>
       </div>
-      <pre id="preview" class="preview" aria-label="Предпросмотр Markdown"></pre>
+      <pre id="preview" class="preview" aria-label="Предпросмотр Markdown (сырой)"></pre>
+      <div id="rendered" class="preview" aria-label="Рендер Markdown (красивый)" style="display:none"></div>
 
       <p class="muted" style="margin-top:14px">
         Форматы/лимиты и прогресс соответствуют MVP‑требованиям (WS/SSE, .md/.json). <!-- док‑основания -->
@@ -247,7 +250,8 @@ addEventListener('pointermove', (e)=>{
 
 /* ====== Единая панель: загрузка ====== */
 const dz = document.getElementById('mix');
-const fileInput = document.getElementById('fileInput');
+ const fileInput = document.getElementById('fileInput');
+ const pct = document.getElementById('pct');
 const btnUpload = document.getElementById('btnUpload');
 
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('active'); });
@@ -297,7 +301,7 @@ const meta = document.getElementById('meta');
 const preview = document.getElementById('preview');
 const dlMd = document.getElementById('dlMd');
 const dlJson = document.getElementById('dlJson');
-let jobId=null, es=null;
+let jobId=null, ws=null, poll=null;
 
 async function startUpload(file){
   if (!/\.(mp3|m4a|wav)$/i.test(file.name) && !/webm|ogg/i.test(file.type)){
@@ -312,23 +316,63 @@ async function startUpload(file){
 
   statusBox.style.display=''; meta.style.display='none'; preview.style.display='none';
   bar.style.width='0%'; statusText.innerHTML='<strong>Обработка…</strong> (VAD → ASR → Разметка)';
+  if(pct) pct.textContent = '0%';
 
-  es?.close?.(); es = new EventSource(`/api/status/${jobId}`);
-  es.onmessage = e=>{
-    try{
-      const p = JSON.parse(e.data);
-      if (typeof p.progress==='number') bar.style.width = Math.max(0,Math.min(100,p.progress)) + '%';
-      if (p.status==='ready'){ es.close(); loadResult(); }
-      if (p.status==='error'){ es.close(); statusText.textContent='Ошибка обработки'; }
-    }catch{}
-  };
+  connectWS(jobId);
 }
-cancelBtn.addEventListener('click', ()=>{ es?.close?.(); statusText.textContent='Отменено' });
+cancelBtn.addEventListener('click', ()=>{ try{ ws?.close?.(); }catch{} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Отменено'; });
+
+function handleProgress(p){
+  if (typeof p.progress==='number'){
+    const v = Math.max(0, Math.min(100, p.progress));
+    bar.style.width = v + '%';
+    if(pct) pct.textContent = String(Math.round(v)) + '%';
+  }
+  if (p.status==='ready'){ try{ ws?.close?.(); }catch{} if(poll){ clearInterval(poll); poll=null; } loadResult(); }
+  if (p.status==='error'){ try{ ws?.close?.(); }catch{} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Ошибка обработки'; }
+  if (p.message){ statusText.textContent = p.message; }
+}
+
+function startPolling(jobId){
+  if(poll) return;
+  poll = setInterval(async ()=>{
+    try{
+      const r = await fetch(`/api/status/${jobId}`);
+      if(r.ok){ const p = await r.json(); handleProgress(p); }
+    }catch{}
+  }, 1200);
+}
+
+function connectWS(jobId){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try{
+    ws = new WebSocket(`${proto}://${location.host}/api/ws/${jobId}`);
+    ws.onmessage = (e)=>{
+      try{
+        const msg = JSON.parse(e.data);
+        if (msg && msg.event === 'progress' && msg.data){ handleProgress(msg.data); }
+      }catch{}
+    };
+    ws.onclose = ()=>{ startPolling(jobId); };
+    ws.onerror = ()=>{ try{ ws.close(); }catch{} startPolling(jobId); };
+  }catch{ startPolling(jobId); }
+}
 
 async function loadResult(){
   statusText.textContent='Готово';
   const md = await fetch(`/api/result/${jobId}?format=markdown`).then(r=>r.text());
-  preview.textContent = md; preview.style.display='block';
+  // Заполняем сырой Markdown, но показываем только красивый рендер.
+  preview.textContent = md;
+  const rendered = document.getElementById('rendered');
+  if(window.marked && rendered){
+    rendered.innerHTML = window.marked.parse(md);
+    rendered.style.display='block';
+    preview.style.display='none';
+  } else {
+    // Фолбэк: если marked не загрузился — показываем сырой Markdown
+    preview.style.display='block';
+  }
+  if(pct) pct.textContent = '100%';
   meta.style.display='flex';
   dlMd.href = `/api/result/${jobId}?format=markdown`;
   dlJson.href = `/api/result/${jobId}?format=json`;
@@ -341,6 +385,9 @@ dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.prev
 </script>
 <!-- p5.js CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+<!-- Markdown render (marked) -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <!-- Trailing Grid (p5.js) sketch -->
 <script>
