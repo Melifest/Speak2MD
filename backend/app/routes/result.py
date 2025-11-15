@@ -31,35 +31,35 @@ async def get_result(
 
     job_id = job_id.strip()
 
-    # 2. Пытаемся взять из in-memory (WS прогресс, симулятор)
+    # 2.Пытаемся взять из in-memory
     task = tasks.get(job_id)
     if task:
-        # допускаем оба финальных статуса: completed (симулятор) + ready (реальный пайплайн)
+        # допускаем оба финальных статуса: completed + ready
         if task.get("status") not in {"completed", "ready"}:
             raise HTTPException(
                 status_code=status.HTTP_425_TOO_EARLY,
                 detail="Task is not completed yet"
             )
 
-        # Определяем путь к файлу результата
+        #определение пути к файлу результата
         filename = "result.md" if format == "markdown" else "result.json"
         result_path = path_for(job_id, filename)
 
-        # Для JSON поддерживаем артефакт из реального пайплайна: transcript.json
+        #для JSON поддерживаем артефакт из реального пайплайна: transcript.json
         if format == "json" and not result_path.exists():
             alt_path = path_for(job_id, "transcript.json")
             if alt_path.exists():
                 result_path = alt_path
                 filename = "transcript.json"
 
-        # Проверяем что файл существует
+        #проверка что файл существует
         if not result_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Result file not found for job {job_id}"
             )
 
-        # Читаем содержимое файла
+        #чтение содержимого файла
         try:
             with open(result_path, "r", encoding="utf-8") as f:
                 content = f.read()
@@ -81,7 +81,7 @@ async def get_result(
             }
         )
 
-    # 3. Fallback: пытаемся получить статус и пути из БД (реальный пайплайн)
+    # 3. Fallback: пытаемся получить статус и пути из БД
     try:
         with SessionLocal() as db:
             job = db.query(Job).filter(Job.id == job_id).first()
@@ -102,7 +102,7 @@ async def get_result(
             detail="Task is not completed yet"
         )
 
-    # Определяем путь к результату: сначала поля из БД, затем артефакты в job_dir
+    # определение пути к результату: сначала поля из БД, затем артефакты в job_dir
     if format == "markdown":
         if job.result_md_path:
             result_path = Path(job.result_md_path)
@@ -111,7 +111,7 @@ async def get_result(
             result_path = path_for(job_id, "result.md")
             filename = "result.md"
     else:
-        # JSON: сначала job.result_json_path, затем result.json, затем transcript.json
+        # сначала job.result_json_path, затем result.json, затем transcript.json
         if job.result_json_path:
             result_path = Path(job.result_json_path)
             filename = os.path.basename(job.result_json_path) or "result.json"

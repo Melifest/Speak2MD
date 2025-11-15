@@ -214,7 +214,7 @@ def _run_real_pipeline(job_id: str, wav_path: Path) -> tuple[Path, Path]:
             logger.info("PaddleSpeech disabled by config; using Faster-Whisper directly")
 
         if not raw_text:
-            update_task_progress(job_id, 70, "processing", f"ASR running (Faster-Whisper {model_name})")
+            update_task_progress(job_id, 60, "processing", f"ASR running (Faster-Whisper {model_name})")
             raw_text = _run_whisper_with_hard_timeout(
                 job_id,
                 wav_path,

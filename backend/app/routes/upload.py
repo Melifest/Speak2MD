@@ -17,11 +17,10 @@ from ..services.pipeline import run_job
 
 @router.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
 async def upload_audio(file: UploadFile = File(...)):
-    """
-    Загружает аудиофайл и создает задачу на обработку
-    """
+    #загружает аудиофайл и создает задачу на обработку
 
-    # 1. проверка типп файла (нормализуем)
+
+    # 1. проверка типа файла (нормализуем)
     raw_content_type = (file.content_type or '').strip().lower()
     normalized_content_type = raw_content_type.split(';', 1)[0].strip()
     allowed_types = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/webm', 'audio/ogg']
@@ -56,11 +55,11 @@ async def upload_audio(file: UploadFile = File(...)):
             detail=f"Неподдерживаемое расширение файла. Разрешены: {', '.join(allowed_extensions)}"
         )
 
-    # 3. Читаем файл чтобы определить размер
+    # 3. Чтение файла для определение размера
     content = await file.read()
     file_size = len(content)
 
-    # 4. Проверяем размер файла (50 МБ = 50 * 1024 * 1024 байт)
+    # 4. Проверить размер файла
     max_size = 50 * 1024 * 1024
     if file_size > max_size:
         raise HTTPException(
@@ -68,10 +67,10 @@ async def upload_audio(file: UploadFile = File(...)):
             detail="Файл слишком большой. Максимальный размер: 50 МБ"
         )
 
-    # 5. Создаем уникальный ID задачи
+    # 5. ID задачи
     job_id = str(uuid.uuid4())
     #5.1 сохраним исходный файл как original.<ext>,
-    #    где <ext> определяется из content-type, а при его отсутствии — из имени
+    #<ext> определяется из content-type, а при его отсутствии — из имени
     save_ext = content_extension or (file_extension if file_extension in allowed_extensions else '.wav')
     original_name = f"original{save_ext}"
     storage.save_bytes(job_id, original_name, content)
@@ -91,7 +90,7 @@ async def upload_audio(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB error: {e}")
 
-    # 6. Сохраняем информацию о задаче
+    # 6.Сохраняем информацию о задаче
     tasks[job_id] = {
         "id": job_id,
         "status": "processing",
@@ -105,7 +104,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
     print(f"✅ Создана задача {job_id} для файла {file.filename} ({file_size} байт)")
 
-    # Запускаем реальную обработку в фоне (исполнитель в отдельном потоке)
+    #запускаем реальную обработку в фоне
     async def _process_job_async(job_id: str):
         def _sync():
             try:

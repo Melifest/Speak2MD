@@ -13,7 +13,7 @@ def validate_job_id(job_id: str) -> str:
             detail="Job ID cannot be empty"
         )
 
-    # Проверяем что это валидный UUID (опционально, но рекомендуется)
+    #проверка что это валидный UUID
     try:
         uuid.UUID(job_id)
     except ValueError:

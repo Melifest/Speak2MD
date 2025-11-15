@@ -18,10 +18,9 @@ router = APIRouter()
 )
 def get_status(job_id: str):
     """
-    Get processing status for a job
+    Берет статуст текущего job
 
-    - **job_id**: UUID of the processing job
-    - **returns**: Current status and progress percentage
+    - job_id: айди текущего job
     """
 
     # Простая валидация (можно вынести позже если понадобится)

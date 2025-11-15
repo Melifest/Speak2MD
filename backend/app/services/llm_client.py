@@ -24,7 +24,7 @@ def _api_key() -> Optional[str]:
 
 def _timeout_seconds() -> float:
     # Таймаут HTTP-запроса к LLM (секунды)
-    # По умолчанию увеличим до 240, чтобы не падать на долгой генерации
+    # По умолчанию до 240
     try:
         return float(os.getenv("LLM_TIMEOUT", "240"))
     except Exception:
