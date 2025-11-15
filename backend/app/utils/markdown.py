@@ -1,5 +1,8 @@
-"""Markdown-утилита: каркас без реальной генерации разметки."""
-
 def render_markdown(transcript_text: str, meta: dict) -> str:
-    """Заглушка - вернуть минимальный Markdown-текст без реальной обработки."""
-    raise NotImplementedError("markdown.render_markdown is not implemented in skeleton")
+    title = str(meta.get("title") or meta.get("filename") or "Расшифровка").strip()
+    text = str(transcript_text or "").strip()
+    if not text:
+        return f"# {title}\n\n"
+    parts = [p.strip() for p in text.replace("\r", " ").split(". ") if p.strip()]
+    body = "\n\n".join(parts) if parts else text
+    return f"# {title}\n\n{body}"

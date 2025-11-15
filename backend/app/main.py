@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from .services import storage
+from .settings import settings
 from .db import Base, engine
 
 from .routes.upload import router as upload_router
@@ -14,7 +15,7 @@ from .routes.status import router as status_router
 from .routes.result import router as result_router
 from .routes.ws import router as ws_router
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_LEVEL = settings.LOG_LEVEL.upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("speak2md")
 
@@ -56,8 +57,8 @@ def on_startup():
     # Фоновый прогрев модели ASR — не блокируем старт приложения и /health (заколебал залипать уже)
     def _background_warmup():
         try:
-            model_name = os.getenv("WHISPER_MODEL", "tiny")
-            download_root = os.getenv("WHISPER_CACHE_DIR") or os.getenv("DATA_DIR")
+            model_name = settings.WHISPER_MODEL
+            download_root = settings.WHISPER_CACHE_DIR or settings.DATA_DIR
             from faster_whisper import WhisperModel
             logger.info(
                 "ASR warm-up (background): initializing WhisperModel('%s'), download_root=%s",

@@ -8,7 +8,6 @@ logger = logging.getLogger("speak2md")
 
 def _base_url() -> str:
     # Возвращает базовый url сервера; по дефолу стоит LM Studio
-    # LM Studio exposes OpenAI-compatible API at /v1
     return os.getenv("LLM_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
 
 

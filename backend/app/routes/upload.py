@@ -11,8 +11,9 @@ router = APIRouter()
 # Временное хранилище (используем то же, что в status.py)
 from ..shared_storage import tasks, update_task_progress
 from ..services import storage
-from ..services.processing_simulator import simulate_processing
 from ..services.pipeline import run_job
+import logging
+logger = logging.getLogger("speak2md")
 
 
 @router.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
@@ -102,7 +103,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
     update_task_progress(job_id, 0, "processing", "File uploaded, starting processing")
 
-    print(f"✅ Создана задача {job_id} для файла {file.filename} ({file_size} байт)")
+    logger.info(f"Job {job_id} created for file {file.filename} ({file_size} bytes)")
 
     #запускаем реальную обработку в фоне
     async def _process_job_async(job_id: str):

@@ -1,5 +1,5 @@
 """Сервис пайплайна: 
-Здесь реализация аудио → текст → обработка → LLM → Markdown.
+здесь реализация аудио → текст → обработка → LLM → Markdown.
 Ответственный Сергеев А.П.
 """
 
@@ -11,7 +11,9 @@ import wave
 from contextlib import closing
 from typing import Optional
 from . import storage
+from ..utils.markdown import render_markdown
 from .audio_converter import convert_to_wav_16k_mono
+from ..utils.audio import wav_duration_seconds
 from ..shared_storage import update_task_progress
 from ..models import Job, JobStatus
 logger = logging.getLogger("speak2md")
@@ -115,19 +117,7 @@ def _run_whisper_with_hard_timeout(
         except Exception:
             pass
 
-def _estimate_wav_duration_sec(wav_path: Path) -> float | None:
-    """Оценить длительность WAV-файла в секундах.
-    Почему такое делаем - файлы могут быть разные, при аудио больше 30 мин все падало.
-    """
-    try:
-        with closing(wave.open(str(wav_path), "rb")) as w:
-            frames = w.getnframes()
-            rate = w.getframerate() or 0
-            if rate > 0:
-                return frames / float(rate)
-            return None
-    except Exception:
-        return None
+ 
 
 def _run_mock_pipeline(job_id: str, wav_path: Path) -> tuple[Path, Path]:
     # простой локальный мок, герерит текст и артефакты
@@ -152,7 +142,7 @@ def _run_real_pipeline(job_id: str, wav_path: Path) -> tuple[Path, Path]:
         #базовый минимум таймаут (if звук короткий)
         base_asr_timeout = int(os.getenv("ASR_TIMEOUT_SEC", "60"))
         # масштабирование таймаута от длительности, по умолчанию ×3 от длины WAV
-        duration_sec = _estimate_wav_duration_sec(wav_path)
+        duration_sec = wav_duration_seconds(wav_path)
         factor = float(os.getenv("ASR_TIMEOUT_FACTOR", "3.0"))
         if duration_sec is not None and duration_sec > 0:
             scaled = int(duration_sec * max(factor, 1.0))
@@ -234,12 +224,7 @@ def _run_real_pipeline(job_id: str, wav_path: Path) -> tuple[Path, Path]:
             md_path, json_path = _write_markdown_artifacts(job_id, markdown, raw_text)
         except Exception as e:
             logger.warning("LLM post-processing failed, applying simple Markdown fallback: %s", e)
-            # Простой структуризатор: заголовок и абзацы по предложениям
-            title = (raw_text.strip().split(". ")[0] or "Расшифровка").strip()
-            title = (title[:60] + "…") if len(title) > 60 else title
-            paragraphs = [p.strip() for p in raw_text.split(". ") if p.strip()]
-            body = "\n\n".join(paragraphs) if paragraphs else raw_text
-            markdown = f"# {title}\n\n{body}"
+            markdown = render_markdown(raw_text, {"title": "Расшифровка"})
             md_path, json_path = _write_markdown_artifacts(job_id, markdown, raw_text)
         return md_path, json_path
     except Exception as e:

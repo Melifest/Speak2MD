@@ -8,8 +8,6 @@ logger = logging.getLogger("worker")
 POLL = float(os.getenv("POLL_INTERVAL_SEC", "2.0"))
 
 def main():
-    """Каркас-воркера - реализовать логику позже.
-    """
     logger.info("Worker started (skeleton). Implement real job processing here.")
     try:
         while True:

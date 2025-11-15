@@ -1,5 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ..ws_manager import connect, disconnect
+import logging
+logger = logging.getLogger("speak2md")
 
 router = APIRouter()
 
@@ -23,10 +25,8 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
                 await websocket.send_text("pong")
 
     except WebSocketDisconnect:
-        # клиент отключился - нормальное завершение
-        print(f"Client disconnected from task {job_id}")
+        logger.info(f"Client disconnected from task {job_id}")
     except Exception as e:
-        # Другие ошибки
-        print(f"WebSocket error for task {job_id}: {e}")
+        logger.warning(f"WebSocket error for task {job_id}: {e}")
     finally:
         disconnect(job_id, websocket)

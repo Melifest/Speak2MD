@@ -3,6 +3,7 @@ from fastapi.responses import Response
 import os
 from pathlib import Path
 from ..shared_storage import tasks
+from ..utils.validation import validate_job_id
 from ..services.storage import path_for
 from ..db import SessionLocal
 from ..models import Job, JobStatus
@@ -22,14 +23,7 @@ async def get_result(
   - return: рзультат обработки в запрашиваемом формате
     """
 
-    # 1. Валидация job_id
-    if not job_id or not job_id.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Job ID cannot be empty"
-        )
-
-    job_id = job_id.strip()
+    job_id = validate_job_id(job_id)
 
     # 2.Пытаемся взять из in-memory
     task = tasks.get(job_id)

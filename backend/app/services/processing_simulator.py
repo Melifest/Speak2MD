@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from . import storage
 from .audio_converter import convert_to_wav_16k_mono
+from ..utils.markdown import render_markdown
 # ВНИМАНИЕ - это вспомогательный файл без реального пайплайна, позже НУЖНО заменить на реальные вызовы пайпалйна
 # Сейчас upload.py явно использует simulate_processing(job_id) . Если его удалить, надо обеспечить, что реальная 
 # обработка будет вызывать update_task_progress , иначе прогресса не будет вообще.
@@ -67,31 +68,10 @@ async def simulate_processing(job_id: str):
 async def create_test_results(job_id: str, task_data: dict):
     """Создает тестовые файлы результатов для демонстрации"""
 
-    # Создаем тестовый Markdown результат
-    markdown_content = f"""# Расшифровка: {task_data['filename']}
-
-## Основные тезисы
-
-- Аудиофайл успешно обработан
-- Размер файла: {task_data['file_size']} байт
-- Качество распознавания: 95%
-- ID задачи: {job_id}
-
-## Содержание
-
-1. **Введение** - основные моменты встречи
-2. **Ключевые решения** - принятые решения  
-3. **Action items** - задачи на следующий период
-
-### Детализация
-
-- **Начало встречи**: 10:00
-- **Участники**: 5 человек
-- **Основные темы**: план разработки, технические вопросы
-
-> Обработано сервисом Speak2MD
-> Время обработки: 2.5 секунды
-"""
+    transcript_text = (
+        f"Файл {task_data['filename']} успешно обработан. Размер {task_data['file_size']} байт."
+    )
+    markdown_content = render_markdown(transcript_text, {"filename": task_data.get("filename")})
 
     # Создаем тестовый JSON результат
     json_content = {
@@ -137,9 +117,9 @@ async def create_test_results(job_id: str, task_data: dict):
         save_bytes(job_id, "result.md", markdown_content.encode('utf-8'))
         save_bytes(job_id, "result.json", json.dumps(json_content, ensure_ascii=False, indent=2).encode('utf-8'))
 
-        print(f"✅ Результаты сохранены для задачи {job_id}")
-        print(f"   📄 result.md - {len(markdown_content)} символов")
-        print(f"   📊 result.json - {len(json.dumps(json_content))} символов")
+        logger.info(f"Results saved for job {job_id}")
+        logger.info(f"result.md - {len(markdown_content)} chars")
+        logger.info(f"result.json - {len(json.dumps(json_content))} chars")
 
     except Exception as e:
-        print(f"❌ Ошибка при сохранении результатов для {job_id}: {e}")
+        logger.error(f"Failed to save results for {job_id}: {e}")

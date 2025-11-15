@@ -1,20 +1,58 @@
+import shutil
+import subprocess
 from pathlib import Path
 
-"""Утилиты аудио -0 пока каркас без реальной обработки.
-Реальную работу с аудио/ffmpeg добавить в рамках проекта.
-"""
+def wav_duration_seconds(path: Path) -> float | None:
+    try:
+        import wave
+        from contextlib import closing
+        with closing(wave.open(str(path), "rb")) as w:
+            frames = w.getnframes()
+            rate = w.getframerate() or 0
+            if rate > 0:
+                return frames / float(rate)
+            return None
+    except Exception:
+        return None
 
-def ffprobe_duration_seconds(path: Path) -> int | None:
-    """Заглушка: определить длительность аудио файла.
-    реализовано на месте, позже перенести сюда
-    Возвращает None. Реализация должна использовать доступные нам инструменты.
-    """
-    raise NotImplementedError("audio.ffprobe_duration_seconds is not implemented in skeleton")
-
-
-def convert_to_wav(input_path: Path, output_path: Path, sample_rate: int = 16000):
-    """Заглушка: конвертация аудио в WAV.
-    реализовано на месте, позже перенести сюда
-    Реализация должна использовать ffmpeg или аналог. Пока  заглушка.
-    """
-    raise NotImplementedError("audio.convert_to_wav is not implemented in skeleton")
+def convert_to_wav(input_path: Path, output_path: Path, sample_rate: int = 16000, timeout_sec: int = 60) -> Path:
+    ffmpeg_cmd = None
+    usr_bin_ffmpeg = Path("/usr/bin/ffmpeg")
+    if usr_bin_ffmpeg.exists():
+        ffmpeg_cmd = str(usr_bin_ffmpeg)
+    else:
+        ffmpeg_cmd = shutil.which("ffmpeg")
+    if not ffmpeg_cmd:
+        try:
+            import imageio_ffmpeg
+            ffmpeg_cmd = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            raise RuntimeError("FFmpeg not found")
+    cmd = [
+        ffmpeg_cmd,
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        "-i", str(input_path),
+        "-vn",
+        "-ac", "1",
+        "-ar", str(sample_rate),
+        "-acodec", "pcm_s16le",
+        str(output_path),
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout_sec,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"FFmpeg timeout after {timeout_sec}s")
+    except Exception:
+        raise RuntimeError("FFmpeg execution failed")
+    if proc.returncode != 0:
+        raise RuntimeError(f"FFmpeg returned {proc.returncode}")
+    return output_path

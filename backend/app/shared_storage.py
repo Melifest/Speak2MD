@@ -1,4 +1,6 @@
 from .ws_manager import broadcast_progress
+import logging
+logger = logging.getLogger("speak2md")
 
 # Существующее хранилище задач
 tasks = {
@@ -57,4 +59,4 @@ def update_task_progress(task_id: str, progress: int, status: str = None, messag
         # Если нет event loop (например, в отдельном потоке), создаем новый
         asyncio.run(broadcast_progress(task_id, progress_data))
 
-    print(f"📊 Task {task_id} progress updated: {progress}%")
+    logger.info(f"Task {task_id} progress updated: {progress}%")

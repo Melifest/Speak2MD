@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from ..shared_storage import tasks
+from ..utils.validation import validate_job_id
 from ..schemas import StatusResponse  # ← Используем существующую модель
 from ..db import SessionLocal
 from ..models import Job, JobStatus
@@ -23,14 +24,7 @@ def get_status(job_id: str):
     - job_id: айди текущего job
     """
 
-    # Простая валидация (можно вынести позже если понадобится)
-    if not job_id or not job_id.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Job ID cannot be empty"
-        )
-
-    job_id = job_id.strip()
+    job_id = validate_job_id(job_id)
 
     #1 - пытаемся взять из in-memory (WS прогресс, симулятор)
     task = tasks.get(job_id)
