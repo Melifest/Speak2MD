@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, JSON, Text
+from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, JSON, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from .db import Base
@@ -56,3 +56,32 @@ class JobEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     job = relationship("Job", back_populates="events")
+
+# юзер  для аутентификации и профиля
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String, primary_key=True, default=uuidpk)
+    username = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    email = Column(String, nullable=True) # возможно на будущее, сейчас используем username
+    plan = Column(String, nullable=False, default="free")
+    role = Column(String, nullable=False, default="user")
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+
+# хранилище рефреш-токенов (opaque), в БД только хеш
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id = Column(String, primary_key=True, default=uuidpk)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    replaced_by = Column(String, nullable=True)
+
+    user = relationship("User", back_populates="refresh_tokens")

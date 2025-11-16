@@ -114,12 +114,12 @@ ws.onmessage = (e) => console.log("WS:", e.data);
 ### POST /api/auth/register
 **Request:**
 ```json
-{ "email": "user@example.com", "password": "StrongPassw0rd!", "full_name": "Алексей Иванов" }
+{ "username": "alex", "password": "StrongPassw0rd!", "full_name": "Алексей Иванов" }
 ```
 
 **Response 200:**
 ```json
-{ "id": "9f9a9f8c-4f31-4f7a-9c9b-21b2a80d2b65", "email": "user@example.com", "full_name": "Алексей Иванов", "plan": "free", "usage": {"minutes_used": 0, "jobs_active": 0} }
+{ "id": "9f9a9f8c-4f31-4f7a-9c9b-21b2a80d2b65", "username": "alex", "full_name": "Алексей Иванов", "plan": "free", "usage": {"minutes_used": 0, "jobs_active": 0} }
 ```
 
 Ошибки: 400, 401, 404, 500
@@ -129,7 +129,7 @@ ws.onmessage = (e) => console.log("WS:", e.data);
 ### POST /api/auth/login
 **Request:**
 ```json
-{ "email": "user@example.com", "password": "StrongPassw0rd!" }
+{ "username": "alex", "password": "StrongPassw0rd!" }
 ```
 **Response 200:**
 ```json
@@ -159,7 +159,7 @@ ws.onmessage = (e) => console.log("WS:", e.data);
 
 **Response 200:**
 ```json
-{ "id": "<uuid>", "email": "user@example.com", "full_name": "Алексей Иванов", "plan": "free", "usage": {"minutes_used": 12, "jobs_active": 1} }
+{ "id": "<uuid>", "username": "alex", "full_name": "Алексей Иванов", "plan": "free", "usage": {"minutes_used": 12, "jobs_active": 1} }
 ```
 
 Ошибки: 400, 401, 404, 500

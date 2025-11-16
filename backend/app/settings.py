@@ -3,7 +3,7 @@ import os
 class Settings:
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     DATA_DIR = os.getenv("DATA_DIR", "./data")
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./speak2md.db")
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@db:5432/postgres")
     LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://127.0.0.1:1234/v1")
     LLM_MODEL = os.getenv("LLM_MODEL", "local-model")
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "20000"))
@@ -18,5 +18,13 @@ class Settings:
     LANGUAGE = os.getenv("LANGUAGE", "ru")
     MOCK_PIPELINE = os.getenv("MOCK_PIPELINE", "false")
     POLL_INTERVAL_SEC = float(os.getenv("POLL_INTERVAL_SEC", "2.0"))
+
+    # JWT / Auth настройки
+    JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-prod")
+    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRES_SECONDS = int(os.getenv("ACCESS_TOKEN_EXPIRES_SECONDS", "3600"))
+    REFRESH_TOKEN_EXPIRES_SECONDS = int(os.getenv("REFRESH_TOKEN_EXPIRES_SECONDS", "2592000"))  # 30 дней
+    JWT_ISSUER = os.getenv("JWT_ISSUER", "speak2md")
+    JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "speak2md-users")
 
 settings = Settings()

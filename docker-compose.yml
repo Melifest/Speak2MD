@@ -20,7 +20,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@db:5432/postgres}
       - DATA_DIR=${DATA_DIR}
       - MOCK_PIPELINE=${MOCK_PIPELINE}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -44,7 +44,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@db:5432/postgres}
       - DATA_DIR=${DATA_DIR}
       - MOCK_PIPELINE=${MOCK_PIPELINE}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
