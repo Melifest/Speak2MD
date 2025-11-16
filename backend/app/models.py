@@ -23,6 +23,7 @@ class ArtifactType(str, enum.Enum):
 class Job(Base):
     __tablename__ = "jobs"
     id = Column(String, primary_key=True, default=uuidpk)
+    user_id = Column(String, nullable=True)
     status = Column(Enum(JobStatus), nullable=False, default=JobStatus.processing)
     progress = Column(Integer, nullable=False, default=0)
     original_filename = Column(String, nullable=True)

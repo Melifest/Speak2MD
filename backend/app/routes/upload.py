@@ -1,10 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Header
 import uuid
 import os
 import asyncio
 from ..schemas import UploadResponse, ErrorResponse
 from ..db import SessionLocal
 from ..models import Job, JobStatus
+from ..utils.security import get_current_user
 
 router = APIRouter()
 
@@ -17,7 +18,7 @@ logger = logging.getLogger("speak2md")
 
 
 @router.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
-async def upload_audio(file: UploadFile = File(...)):
+async def upload_audio(file: UploadFile = File(...), authorization: str | None = Header(None)):
     #загружает аудиофайл и создает задачу на обработку
 
 
@@ -86,6 +87,12 @@ async def upload_audio(file: UploadFile = File(...)):
                 original_filename=file.filename,
                 content_type=file.content_type,
             )
+            if authorization:
+                try:
+                    user = get_current_user(authorization)
+                    job.user_id = user.id
+                except Exception:
+                    pass
             db.add(job)
             db.commit()
     except Exception as e:

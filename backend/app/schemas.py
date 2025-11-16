@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 
 class UploadResponse(BaseModel):
     job_id: str = Field(..., description="ID созданной задачи")
@@ -49,4 +50,16 @@ class UserProfile(BaseModel):
     email: Optional[str] = None
     plan: str = "free"
     usage: UserUsage = Field(default_factory=UserUsage)
+
+# схемы транскриптов
+class TranscriptItem(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    duration_sec: Optional[int] = None
+    status: str
+
+class TranscriptListResponse(BaseModel):
+    total: int
+    items: List[TranscriptItem]
 
