@@ -19,3 +19,34 @@ class ResultResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
 
+# Схемы аутентификации 
+class AuthRegisterRequest(BaseModel):
+    username: str = Field(..., description="Имя пользователя (уникальное)")
+    password: str = Field(..., min_length=8, description="Пароль (минимум 8 символов)")
+    full_name: Optional[str] = Field(None, description="Полное имя")
+
+class AuthLoginRequest(BaseModel):
+    username: str = Field(..., description="Имя пользователя")
+    password: str = Field(..., description="Пароль")
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(..., description="Refresh-токен")
+
+class AuthTokensResponse(BaseModel):
+    access_token: str = Field(..., description="JWT access-токен")
+    refresh_token: str = Field(..., description="Opaque refresh-токен")
+    token_type: str = Field("bearer", description="Тип токена")
+    expires_in: int = Field(..., description="Время жизни access-токена в секундах")
+
+class UserUsage(BaseModel):
+    minutes_used: int = 0
+    jobs_active: int = 0
+
+class UserProfile(BaseModel):
+    id: str
+    username: str
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    plan: str = "free"
+    usage: UserUsage = Field(default_factory=UserUsage)
+

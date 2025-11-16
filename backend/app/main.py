@@ -14,6 +14,7 @@ from .routes.upload import router as upload_router
 from .routes.status import router as status_router
 from .routes.result import router as result_router
 from .routes.ws import router as ws_router
+from .routes.auth import router as auth_router
 
 LOG_LEVEL = settings.LOG_LEVEL.upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -35,6 +36,7 @@ app.include_router(upload_router, prefix="/api", tags=["upload"])
 app.include_router(status_router, prefix="/api", tags=["status"])
 app.include_router(result_router, prefix="/api", tags=["result"])
 app.include_router(ws_router, prefix="/api", tags=["ws"])
+app.include_router(auth_router, prefix="/api", tags=["auth"])
 
 # метрики (добавляем middleware до старта приложения)
 Instrumentator().instrument(app).expose(app)
