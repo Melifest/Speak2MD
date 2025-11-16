@@ -1,10 +1,12 @@
 import os
 import logging
 import threading
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from prometheus_fastapi_instrumentator import Instrumentator
 from .services import storage
 from .settings import settings
@@ -44,6 +46,25 @@ Instrumentator().instrument(app).expose(app)
 # Статика (пока простой фронт)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
+
+#голбальные  обработчики ошибок — единый формат {"error": "..."}
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    msg = exc.detail if isinstance(exc.detail, str) else "Error"
+    return JSONResponse(status_code=exc.status_code, content={"error": msg})
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    msg = exc.detail if isinstance(exc.detail, str) else "Error"
+    return JSONResponse(status_code=exc.status_code, content={"error": msg})
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=400, content={"error": "Bad Request"})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
 
 @app.on_event("startup")
 def on_startup():
