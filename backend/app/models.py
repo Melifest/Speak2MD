@@ -11,6 +11,7 @@ def uuidpk():
     return str(uuid.uuid4())
 
 def default_expires_at():
+    # по дефолту даём 7 дней жизни ссылке — проще всего
     return datetime.utcnow() + timedelta(days=7)
 
 class JobStatus(str, enum.Enum):
@@ -93,10 +94,11 @@ class RefreshToken(Base):
 
 class ShareLink(Base):
     __tablename__ = "share_links"
+    # маленькая сущность для read-only шаринга результата по токену
     id = Column(String, primary_key=True, default=uuidpk)
     token = Column(String, unique=True, nullable=False)
-    job_id = Column(String, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
-    owner_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    job_id = Column(String, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)  # к какому результату привязано
+    owner_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # кто создал ссылку
     expires_at = Column(DateTime, nullable=False, default=default_expires_at)
-    revoked = Column(Boolean, nullable=False, default=False)
+    revoked = Column(Boolean, nullable=False, default=False)  # if true - ссылка мертва
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

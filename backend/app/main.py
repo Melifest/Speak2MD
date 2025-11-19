@@ -19,6 +19,7 @@ from .routes.ws import router as ws_router
 from .routes.auth import router as auth_router
 from .routes.transcripts import router as transcripts_router
 from .routes.share import router as share_router
+from .routes.plan import router as plan_router
 
 LOG_LEVEL = settings.LOG_LEVEL.upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -26,7 +27,7 @@ logger = logging.getLogger("speak2md")
 
 app = FastAPI(title="Speak2MD API", version="0.1.0")
 
-# CORS (пока простая конфигурация для MVP)
+# CORS (пока простая конфа для MVP)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,6 +44,7 @@ app.include_router(ws_router, prefix="/api", tags=["ws"])
 app.include_router(auth_router, prefix="/api", tags=["auth"])
 app.include_router(transcripts_router, prefix="/api", tags=["Transcripts"])
 app.include_router(share_router, prefix="/api", tags=["share"])
+app.include_router(plan_router, prefix="/api", tags=["plan"])
 
 # метрики (добавляем middleware до старта приложения)
 Instrumentator().instrument(app).expose(app)

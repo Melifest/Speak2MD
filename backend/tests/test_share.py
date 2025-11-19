@@ -28,14 +28,14 @@ def gen_wav(duration_sec=1, samplerate=8000, freq=440.0):
     return buf.getvalue()
 
 def register_and_login():
-    client.post("/api/auth/register", json={"username": "u1", "password": "StrongPassw0rd!"})
+    client.post("/api/auth/register", json={"username": "u1", "password": "StrongPassw0rd!"})  # простой юзер
     r = client.post("/api/auth/login", json={"username": "u1", "password": "StrongPassw0rd!"})
     assert r.status_code == 200
     return r.json()["access_token"]
 
 def test_share_flow():
     token = register_and_login()
-    audio = gen_wav(1)
+    audio = gen_wav(1)  # синтетика на 1 секунду - ятоб не возиться
     files = {"file": ("test.wav", audio, "audio/wav")}
     r = client.post("/api/upload", files=files, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
@@ -45,18 +45,18 @@ def test_share_flow():
         job = db.query(Job).filter(Job.id == job_id).first()
         run_job(db, job)
 
-    r2 = client.post(f"/api/share/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    r2 = client.post(f"/api/share/{job_id}", headers={"Authorization": f"Bearer {token}"}) #создать ссылку
     assert r2.status_code == 200
     url = r2.json()["url"]
     share_token = url.split("/")[-1]
 
-    r3 = client.get(f"/api/share/{share_token}?format=markdown")
+    r3 = client.get(f"/api/share/{share_token}?format=markdown")  #любой может читать по токену
     assert r3.status_code == 200
     assert "text/markdown" in r3.headers.get("content-type", "")
 
-    r4 = client.delete(f"/api/share/{share_token}", headers={"Authorization": f"Bearer {token}"})
+    r4 = client.delete(f"/api/share/{share_token}", headers={"Authorization": f"Bearer {token}"})  #владелец отзывает
     assert r4.status_code == 200
     assert r4.json().get("revoked") is True
 
-    r5 = client.get(f"/api/share/{share_token}?format=markdown")
+    r5 = client.get(f"/api/share/{share_token}?format=markdown")  # после отзыва должно быть 404
     assert r5.status_code == 404
