@@ -18,6 +18,7 @@ from .routes.result import router as result_router
 from .routes.ws import router as ws_router
 from .routes.auth import router as auth_router
 from .routes.transcripts import router as transcripts_router
+from .routes.share import router as share_router
 
 LOG_LEVEL = settings.LOG_LEVEL.upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -41,6 +42,7 @@ app.include_router(result_router, prefix="/api", tags=["result"])
 app.include_router(ws_router, prefix="/api", tags=["ws"])
 app.include_router(auth_router, prefix="/api", tags=["auth"])
 app.include_router(transcripts_router, prefix="/api", tags=["Transcripts"])
+app.include_router(share_router, prefix="/api", tags=["share"])
 
 # метрики (добавляем middleware до старта приложения)
 Instrumentator().instrument(app).expose(app)

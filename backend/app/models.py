@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
+from datetime import timedelta
 from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, JSON, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
@@ -8,6 +9,9 @@ from .db import Base
 
 def uuidpk():
     return str(uuid.uuid4())
+
+def default_expires_at():
+    return datetime.utcnow() + timedelta(days=7)
 
 class JobStatus(str, enum.Enum):
     queued = "queued"
@@ -86,3 +90,13 @@ class RefreshToken(Base):
     replaced_by = Column(String, nullable=True)
 
     user = relationship("User", back_populates="refresh_tokens")
+
+class ShareLink(Base):
+    __tablename__ = "share_links"
+    id = Column(String, primary_key=True, default=uuidpk)
+    token = Column(String, unique=True, nullable=False)
+    job_id = Column(String, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    expires_at = Column(DateTime, nullable=False, default=default_expires_at)
+    revoked = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
