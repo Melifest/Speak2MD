@@ -12,20 +12,21 @@ from ..services.storage import path_for
 
 router = APIRouter()
 
+# шеринг read-only: создать, посмотреть по токену, отозвать
 @router.post("/share/{job_id}")
 def create_share(job_id: str, authorization: str = Header(None)):
-    job_id = validate_job_id(job_id)
+    job_id = validate_job_id(job_id)  #нормализуем/проверяем ууид
     user = get_current_user(authorization)
     with SessionLocal() as db:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         job_status_value = job.status.value if isinstance(job.status, JobStatus) else str(job.status)
-        if job_status_value != "ready":
+        if job_status_value != "ready":#делимся только готовым
             raise HTTPException(status_code=status.HTTP_425_TOO_EARLY, detail="Task is not completed yet")
         if not job.user_id or job.user_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-        token = str(uuid.uuid4())
+        token = str(uuid.uuid4())#генерим простой uuid как токен
         expires_at = datetime.utcnow() + timedelta(days=7)
         sl = ShareLink(
             token=token,
@@ -36,7 +37,7 @@ def create_share(job_id: str, authorization: str = Header(None)):
         )
         db.add(sl)
         db.commit()
-        return {"url": f"/api/share/{token}", "expires_at": expires_at.isoformat()}
+        return {"url": f"/api/share/{token}", "expires_at": expires_at.isoformat()}# фронт подставит базовый url
 
 @router.get("/share/{token}")
 def get_share(token: str, format: str = Query("markdown", regex="^(markdown|json)$")):
@@ -46,20 +47,20 @@ def get_share(token: str, format: str = Query("markdown", regex="^(markdown|json
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
         if sl.revoked or sl.expires_at <= datetime.utcnow():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link expired or revoked")
-        job = db.query(Job).filter(Job.id == sl.job_id).first()
+        job = db.query(Job).filter(Job.id == sl.job_id).first()# на всякий проверим job
         if not job:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         job_status_value = job.status.value if isinstance(job.status, JobStatus) else str(job.status)
-        if job_status_value != "ready":
+        if job_status_value != "ready":# лишний случай — пока не готово
             raise HTTPException(status_code=status.HTTP_425_TOO_EARLY, detail="Task is not completed yet")
-        if format == "markdown":
+        if format == "markdown":  # обычный md результат
             if job.result_md_path:
                 result_path = Path(job.result_md_path)
                 filename = os.path.basename(job.result_md_path) or "result.md"
             else:
                 result_path = path_for(sl.job_id, "result.md")
                 filename = "result.md"
-        else:
+        else:# json: сначала путь из бд, потом стандарт, потом fallback на transcript.json
             if job.result_json_path:
                 result_path = Path(job.result_json_path)
                 filename = os.path.basename(job.result_json_path) or "result.json"
@@ -85,15 +86,15 @@ def get_share(token: str, format: str = Query("markdown", regex="^(markdown|json
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "X-Job-ID": sl.job_id,
-                "X-Filename": (job.original_filename or os.path.basename(str(result_path)))
+                "X-Filename": (job.original_filename or os.path.basename(str(result_path)))  # подсказка имени
             }
         )
 
 @router.delete("/share/{token}")
 def revoke_share(token: str, authorization: str = Header(None)):
-    user = get_current_user(authorization)
+    user = get_current_user(authorization)  # кто пытается отозвать
     with SessionLocal() as db:
-        sl = db.query(ShareLink).filter(ShareLink.token == token).first()
+        sl = db.query(ShareLink).filter(ShareLink.token == token).first()  # ищем ссылку
         if not sl:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
         if not (sl.owner_id == user.id or getattr(user, "role", "user") == "admin"):
@@ -101,4 +102,4 @@ def revoke_share(token: str, authorization: str = Header(None)):
         sl.revoked = True
         db.add(sl)
         db.commit()
-        return {"revoked": True}
+        return {"revoked": True}# фронту ок
