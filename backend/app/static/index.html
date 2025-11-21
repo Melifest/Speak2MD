@@ -30,6 +30,8 @@
 
   /* ====== Layout ====== */
   .container{max-width:var(--container);margin:0 auto;padding:24px}
+  *,*::before,*::after{ box-sizing: border-box }
+  html, body{ width:100%; overflow-x:hidden }
   header{
     position: sticky;
     top: 0;
@@ -41,10 +43,11 @@
   header .header-bar{
     position: relative;
     display:flex;align-items:center;justify-content:space-between;
-    max-width: none; /* allow header items to reach page edges */
+    gap:12px;flex-wrap:wrap;
     width:100%;
-    padding:14px 28px;border-bottom:0;
+    padding:14px 24px;border-bottom:0;
   }
+  #headerAuth{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
   header .header-bar::before{
     content:"";
     position:absolute; inset:0;
@@ -160,6 +163,64 @@
   @media (prefers-reduced-motion: reduce) { #trail-grid { display: none !important; } }
   body.trail-disabled #trail-grid{ display:none }
   #trailToggle{ position:fixed; right:12px; bottom:12px; z-index:20; background:rgba(13,17,23,.6); color:var(--text); border:1px solid var(--border); padding:8px 10px; border-radius:10px; cursor:pointer; font-size:13px }
+  #trail-grid{ overflow:hidden }
+  #trail-grid canvas{ display:block }
+
+  /* Для модалок */
+  .modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+  }
+
+  .modal.hidden{
+  display:none;
+  }
+
+  .modal-box{
+  background:var(--surface);
+  padding:24px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  width:320px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  }
+  .modal-box input{
+    width:100%;
+    background:#0D1117;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    outline:none;
+    transition:border-color .18s, box-shadow .18s, background .18s;
+    appearance:none;
+  }
+  .modal-box input::placeholder{ color:var(--muted) }
+  .modal-box input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,166,255,.18); background:#0b1220 }
+
+  .btn-secondary{ background:#F0F6FC; color:#0D1117 }
+  .btn-secondary:hover, .btn-secondary:focus{ background:#E6EDF3; color:#0D1117; transform:translateY(-2px); box-shadow:0 8px 20px rgba(88,166,255,.12) }
+
+   /* Ошибка */
+  .toast{
+  position:fixed;
+  right:16px;
+  bottom:16px;
+  background:var(--error);
+  padding:14px 18px;
+  border-radius:10px;
+  color:#fff;
+  z-index:1000;
+  animation:fadeIn .2s ease;
+  }
+
 </style>
 </head>
 <body class="">
@@ -168,6 +229,12 @@
   <header>
     <div class="container header-bar">
       <strong>Speak2MD</strong>
+
+      <div id="headerAuth">
+         <!-- Если НЕ залогинен → кнопки -->
+         <button id="btnLoginOpen" class="btn btn-primary">Войти</button>
+         <button id="btnRegisterOpen" class="btn btn-secondary">Регистрация</button>
+      </div>
     </div>
   </header>
 
@@ -408,6 +475,100 @@ async function loadResult(){
 /* ====== Мелкая полировка: клавиатура для dropzone ====== */
 dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); fileInput.click(); }});
 
+/* Открытие/Закрытие модалок */
+function showModal(id){
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function hideModal(id){
+  document.getElementById(id).classList.add("hidden");
+}
+
+document.getElementById("btnLoginOpen").onclick = () => showModal("modalLogin");
+document.getElementById("btnRegisterOpen").onclick = () => showModal("modalRegister");
+
+/* Ошибка */
+function showError(msg){
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 3000);
+}
+
+/* Регистрация */
+document.getElementById("btnRegisterSubmit").onclick = async () => {
+  const payload = {
+    name: document.getElementById("regName").value,
+    email: document.getElementById("regEmail").value,
+    password: document.getElementById("regPassword").value,
+  };
+
+  const r = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (r.status === 400) return showError("Ошибка регистрации");
+
+  if (!r.ok) return showError("Сервер недоступен");
+
+  const data = await r.json();
+
+  // сохранить токены (функция будет в JWT-клиенте)
+  saveTokens(data);
+
+  hideModal("modalRegister");
+  updateHeaderAuth();
+};
+
+/* Вход */
+document.getElementById("btnLoginSubmit").onclick = async () => {
+  const payload = {
+    email: document.getElementById("loginEmail").value,
+    password: document.getElementById("loginPassword").value,
+  };
+
+  const r = await fetch("/api/auth/login", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (r.status === 401) return showError("Неверный логин или пароль");
+
+  if (!r.ok) return showError("Ошибка сервера");
+
+  const data = await r.json();
+
+  saveTokens(data);
+
+  hideModal("modalLogin");
+  updateHeaderAuth();
+};
+
+/* Смена состояния хедера («гость ↔ залогинен») */
+function updateHeaderAuth(){
+  const box = document.getElementById("headerAuth");
+  const user = getUser(); 
+
+  if (!user){
+    box.innerHTML = `
+      <button id="btnLoginOpen" class="btn btn-primary">Войти</button>
+      <button id="btnRegisterOpen" class="btn btn-secondary">Регистрация</button>
+    `;
+    document.getElementById("btnLoginOpen").onclick = () => showModal("modalLogin");
+    document.getElementById("btnRegisterOpen").onclick = () => showModal("modalRegister");
+    return;
+  }
+
+  box.innerHTML = `
+    <span>${user.name}</span>
+    <span class="badge badge-${user.plan}">${user.plan}</span>
+  `;
+}
+
 // p5.js trailing grid implementation will be loaded below
 </script>
 <!-- p5.js CDN -->
@@ -534,5 +695,28 @@ dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.prev
 
 })();
 </script>
+<!-- модалка входа -->
+<div id="modalLogin" class="modal hidden">
+  <div class="modal-box">
+    <h3>Вход</h3>
+    <input id="loginEmail" type="email" placeholder="Email">
+    <input id="loginPassword" type="password" placeholder="Пароль">
+    <button id="btnLoginSubmit" class="btn btn-primary">Войти</button>
+    <button class="btn btn-ghost" onclick="hideModal('modalLogin')">Закрыть</button>
+  </div>
+</div>
+
+<!-- модалка регистрации -->
+<div id="modalRegister" class="modal hidden">
+  <div class="modal-box">
+    <h3>Регистрация</h3>
+    <input id="regName" type="text" placeholder="Имя">
+    <input id="regEmail" type="email" placeholder="Email">
+    <input id="regPassword" type="password" placeholder="Пароль">
+    <button id="btnRegisterSubmit" class="btn btn-primary">Зарегистрироваться</button>
+    <button class="btn btn-ghost" onclick="hideModal('modalRegister')">Закрыть</button>
+  </div>
+</div>
+
 </body>
 </html>
