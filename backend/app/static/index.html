@@ -30,6 +30,8 @@
 
   /* ====== Layout ====== */
   .container{max-width:var(--container);margin:0 auto;padding:24px}
+  *,*::before,*::after{ box-sizing: border-box }
+  html, body{ width:100%; overflow-x:hidden }
   header{
     position: sticky;
     top: 0;
@@ -41,10 +43,11 @@
   header .header-bar{
     position: relative;
     display:flex;align-items:center;justify-content:space-between;
-    max-width: none; /* allow header items to reach page edges */
+    gap:12px;flex-wrap:wrap;
     width:100%;
-    padding:14px 28px;border-bottom:0;
+    padding:14px 24px;border-bottom:0;
   }
+  #headerAuth{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
   header .header-bar::before{
     content:"";
     position:absolute; inset:0;
@@ -160,6 +163,8 @@
   @media (prefers-reduced-motion: reduce) { #trail-grid { display: none !important; } }
   body.trail-disabled #trail-grid{ display:none }
   #trailToggle{ position:fixed; right:12px; bottom:12px; z-index:20; background:rgba(13,17,23,.6); color:var(--text); border:1px solid var(--border); padding:8px 10px; border-radius:10px; cursor:pointer; font-size:13px }
+  #trail-grid{ overflow:hidden }
+  #trail-grid canvas{ display:block }
 
   /* Для модалок */
   .modal{
@@ -186,6 +191,22 @@
   flex-direction:column;
   gap:12px;
   }
+  .modal-box input{
+    width:100%;
+    background:#0D1117;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    outline:none;
+    transition:border-color .18s, box-shadow .18s, background .18s;
+    appearance:none;
+  }
+  .modal-box input::placeholder{ color:var(--muted) }
+  .modal-box input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,166,255,.18); background:#0b1220 }
+
+  .btn-secondary{ background:#F0F6FC; color:#0D1117 }
+  .btn-secondary:hover, .btn-secondary:focus{ background:#E6EDF3; color:#0D1117; transform:translateY(-2px); box-shadow:0 8px 20px rgba(88,166,255,.12) }
 
    /* Ошибка */
   .toast{
