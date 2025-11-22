@@ -1,9 +1,12 @@
-<<!doctype html>
+<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Speak2MD — из аудио в Markdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ====== Токены (взяты из стайл-гайда, адаптированы под новый градиент) ====== */
   :root{
@@ -59,19 +62,15 @@
   header .header-bar > *{ position:relative; z-index:1; }
   a{color:var(--text);text-decoration:none}
   a:hover{color:#fff}
+  #bg-canvas{ position: fixed; inset: 0; z-index: 0; mix-blend-mode: screen; opacity: .6 }
+  .logo{ font-weight: 700; font-size: 20px; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 10px }
+  .logo-icon{ width: 24px; height: 24px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-radius: 6px; box-shadow: 0 0 12px var(--accent) }
 
   /* ====== Центр: единая панель Upload+Record ====== */
   .hero{display:grid;place-items:center;padding:8dvh 0}
-  .panel{
-    position:relative;
-    isolation: isolate;
-    background:rgba(22,27,34,.75);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:28px; max-width:640px; width:100%;
-    box-shadow: 0 20px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.02) inset;
-    animation: fadeIn .5s ease both;
-  }
+  .glass-panel{ position: relative; width: 100%; background: rgba(22,27,34,.65); backdrop-filter: blur(24px); border-radius: 24px; padding: 48px; box-shadow: 0 24px 60px -12px rgba(0,0,0,.6); background-clip: padding-box; border: 1px solid transparent; max-width: 880px; animation: fadeIn .5s ease both }
+  .title-main{ font-size:42px; font-weight:700; margin:0 0 16px; text-align:center; line-height:1.1; background: linear-gradient(135deg, #fff 0%, #b0c4de 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(255,255,255,.1) }
+  .title-sub{ text-align:center; color: var(--muted); font-size:18px; max-width:600px; margin:0 auto 40px }
   /* "Свет за карточкой" — мягкая подсветка без тяжёлого blur'а */
   .panel::before{ display:none }
   .panel:hover::before{ transform:none }
@@ -80,16 +79,16 @@
   .muted{color:var(--muted)}
 
   /* Dropzone + Record = единая «кнопочная» область */
-  .dropmix{
-    border:2px dashed var(--border);border-radius:12px;padding:26px;text-align:center;cursor:pointer;
-    transition:all .25s ease;background:rgba(255,255,255,.01);
-    display:block; width:100%; max-width:560px; margin:0 auto; box-sizing:border-box;
-  }
-  .dropmix:hover, .dropmix.active{ border-color:var(--accent); background:rgba(88,166,255,.06) }
-  .dropmix input{ display:none }
-  .dropmix:focus{ outline: none }
+  .dropzone{ position: relative; border: 2px dashed rgba(255,255,255,.1); border-radius: 16px; background: rgba(0,0,0,.2); padding: 40px; text-align: center; transition: all .3s cubic-bezier(.175,.885,.32,1.275); cursor: pointer; overflow: hidden; display:block; width:100%; max-width:560px; margin:0 auto; box-sizing:border-box }
+  .dropzone:hover{ border-color: var(--accent-2); background: rgba(88,166,255,.03); transform: scale(1.01); box-shadow: 0 10px 30px -10px rgba(88,166,255,.15) }
+  .dropzone.active{ border-color: var(--accent); background: rgba(88,166,255,.1) }
+  .dropzone input{ display: none }
+  .dropzone:focus{ outline: none }
+  .dz-icon{ width:56px; height:56px; margin:0 auto 16px; background: rgba(255,255,255,.05); border-radius: 50%; display:flex; align-items:center; justify-content:center; color: var(--muted); transition:.3s }
+  .dropzone:hover .dz-icon{ background: var(--accent-2); color: #fff; box-shadow: 0 0 20px var(--accent-2) }
 
   .row{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .actions-row{ display:flex; gap:16px; justify-content:center; margin-top: 32px; flex-wrap:wrap }
   .btn{
     display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;padding:12px 16px;font-weight:500;cursor:pointer;
     transition:transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, background .18s ease, color .18s ease;
@@ -114,12 +113,14 @@
 
   /* Прогресс (липкий) */
   .sticky{ position:sticky; top:72px; z-index:12; margin-top:16px }
-  .progress{height:8px;background:#21262D;border-radius:5px;overflow:hidden;box-shadow: inset 0 0 0 1px rgba(255,255,255,.03)}
-  .bar{height:100%;width:0;background:linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);position:relative;transition:width .3s;box-shadow:0 0 0 1px rgba(255,255,255,.06) inset}
-  .bar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);animation:shimmer 1.6s infinite}
+  .progress-wrap{ height:6px; background: rgba(255,255,255,.05); border-radius: 10px; overflow: hidden; margin-top: 10px }
+  .progress-fill{ height:100%; width:0; background: linear-gradient(90deg, var(--accent-2), var(--accent)); box-shadow: 0 0 15px var(--accent-2); transition: width .3s; position: relative }
+  .progress-fill::after{ content:""; position:absolute; inset:0; background: linear-gradient(90deg, transparent, #fff, transparent); opacity:.4; transform: translateX(-100%); animation: shimmer 1.5s infinite }
 
   /* Markdown Preview */
-  .preview{display:none;margin-top:16px;background:#161B22;border:1px solid var(--border);border-radius:10px;padding:22px;white-space:pre-wrap;font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:14px; line-height:1.6; max-height:50vh; overflow:auto; box-shadow: 0 12px 32px rgba(0,0,0,.22)}
+  .preview{display:none;margin-top:30px;background:#050608;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:24px;white-space:pre-wrap;font-family:'JetBrains Mono', monospace; font-size:13px; line-height:1.6; max-height:400px; overflow:auto; box-shadow: inset 0 2px 10px rgba(0,0,0,.5); color:#d1d5db}
+  .preview::-webkit-scrollbar{ width:8px }
+  .preview::-webkit-scrollbar-thumb{ background:#333; border-radius:4px }
   .meta{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px}
 
   /* Микрофон: минималистичные "bars" во время записи */
@@ -159,12 +160,11 @@
   }
 
   /* Trailing grid container (p5.js) */
-  #trail-grid { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
-  @media (prefers-reduced-motion: reduce) { #trail-grid { display: none !important; } }
-  body.trail-disabled #trail-grid{ display:none }
-  #trailToggle{ position:fixed; right:12px; bottom:12px; z-index:20; background:rgba(13,17,23,.6); color:var(--text); border:1px solid var(--border); padding:8px 10px; border-radius:10px; cursor:pointer; font-size:13px }
-  #trail-grid{ overflow:hidden }
-  #trail-grid canvas{ display:block }
+  .features-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:24px; margin-top:60px }
+  .feature-card{ background: rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05); border-radius:16px; padding:24px; transition:.3s; position:relative; overflow:hidden }
+  .feature-card:hover{ transform: translateY(-5px); background: rgba(255,255,255,.06); border-color: var(--accent-2) }
+  .feature-card::before{ content:""; position:absolute; top:-50px; right:-50px; width:100px; height:100px; background: var(--accent-2); filter: blur(60px); opacity:0; transition:.4s }
+  .feature-card:hover::before{ opacity:.2 }
 
   /* Для модалок */
   .modal{
@@ -223,12 +223,11 @@
 
 </style>
 </head>
-<body class="">
-  <div id="trail-grid"></div>
-  <button id="trailToggle" aria-pressed="true" title="Toggle trail">trail</button>
+<body class="bg-alt-3">
+  <div id="bg-canvas"></div>
   <header>
     <div class="container header-bar">
-      <strong>Speak2MD</strong>
+      <a href="#" class="logo"><div class="logo-icon"></div>Speak2MD</a>
 
       <div id="headerAuth">
          <!-- Если НЕ залогинен → кнопки -->
@@ -239,18 +238,19 @@
   </header>
 
   <main class="container hero">
-    <section class="panel" aria-labelledby="title">
-      <h1 id="title" class="h1">Из аудио — в Markdown</h1>
-      <p class="muted">Перетащите файл или запишите голос. Поддерживаются mp3/m4a/wav; лимиты Free: ≤ 50 МБ · ≤ 120 мин. <!-- требования MVP --> </p>
+    <section class="glass-panel" aria-labelledby="title">
+      <h1 id="title" class="title-main">Из голоса в Markdown.<br>Быстро. Точно.</h1>
+      <p class="title-sub">Загрузите аудио встречи или лекции. Наш AI распознает речь и отформатирует текст.</p>
 
       <!-- Объединённая зона: загрузка + запись -->
-      <label id="mix" class="dropmix" tabindex="0" aria-label="Загрузить аудиофайл или записать">
+      <label id="mix" class="dropzone" tabindex="0" aria-label="Загрузить аудиофайл или записать">
         <input id="fileInput" type="file" accept=".mp3,.m4a,.wav,.webm,.ogg" />
-        <div><strong>Перетащите файл сюда</strong> или <u>выберите</u>…</div>
-        <div class="muted" style="margin-top:6px">…или нажмите «Запись» ниже</div>
+        <div class="dz-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div style="font-size:18px; font-weight:600; margin-bottom:4px; color:#fff">Перетащите аудио сюда</div>
+        <div style="font-size:14px; color:var(--muted)">MP3, WAV, M4A (до 50 МБ)</div>
       </label>
 
-      <div class="row" style="margin-top:14px">
+      <div class="actions-row">
         <button id="btnUpload" class="btn btn-primary">Загрузить аудио</button>
         <button id="btnRecord" class="btn btn-ghost" aria-pressed="false">
           <span id="recLabel">Запись</span>
@@ -261,12 +261,12 @@
 
       <!-- Прогресс -->
       <div id="statusBox" style="display:none; margin-top:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#161B22;border:1px solid var(--border);border-radius:10px;padding:12px">
-          <div id="statusText" aria-live="polite"><strong>Обработка…</strong> (VAD → ASR → Разметка)</div>
-          <span id="pct" class="muted" aria-live="polite" style="margin-left:8px;min-width:42px;text-align:right">0%</span>
-          <button id="cancelBtn" class="btn btn-ghost">Отменить</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px; margin-bottom:8px; color:var(--accent)">
+          <strong id="statusText">Анализ аудио...</strong>
+          <span id="pct">0%</span>
         </div>
-        <div class="progress" style="margin-top:8px"><div id="bar" class="bar"></div></div>
+        <div class="progress-wrap"><div id="bar" class="progress-fill"></div></div>
+        <button id="cancelBtn" class="btn btn-ghost" style="margin-top:8px">Отменить</button>
       </div>
 
       <!-- Результат -->
@@ -279,35 +279,29 @@
       </div>
       <pre id="preview" class="preview" aria-label="Предпросмотр Markdown (сырой)"></pre>
       <div id="rendered" class="preview" aria-label="Рендер Markdown (красивый)" style="display:none"></div>
-
-      <p class="muted" style="margin-top:14px">
-        Форматы/лимиты и прогресс соответствуют MVP‑требованиям (WS/SSE, .md/.json). <!-- док‑основания -->
-      </p>
     </section>
   </main>
 
-  <section id="how" class="container how">
-    <h2 style="margin:0 0 12px">Как это работает</h2>
-    <div class="grid">
-      <div class="card"><strong>1. Загрузка/Запись</strong><div class="muted">Файл mp3/m4a/wav или запись</div></div>
-      <div class="card"><strong>2. Обработка</strong><div class="muted">VAD → ASR → структурирование</div></div>
-      <div class="card"><strong>3. Результат</strong><div class="muted">Предпросмотр → скачать .md</div></div>
+  <section class="container">
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3 style="color:#fff; margin-top:0">🎯 Точность распознавания</h3>
+        <p style="color:var(--muted); font-size:14px; line-height:1.6">Whisper‑класс: устойчивость к шуму, акцентам и рус/англ речам.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:#fff; margin-top:0">🗂️ Автоматическая разметка</h3>
+        <p style="color:var(--muted); font-size:14px; line-height:1.6">Автоматическая сегментация, структурирование, исправление ошибок в тексте.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:#fff; margin-top:0">📝 Готовый Markdown</h3>
+        <p style="color:var(--muted); font-size:14px; line-height:1.6">Заголовки, списки, таймкоды; экспорт в .md и JSON для дальнейшей работы.</p>
+      </div>
     </div>
   </section>
 
-  <footer class="container" style="padding:48px 0;color:var(--muted)">
-    © Speak2MD · Мини‑MVP
-  </footer>
+  <footer class="container" style="text-align:center; padding:40px; color:rgba(255,255,255,0.2); font-size:13px">Designed for Speak2MD</footer>
 
 <script>
-/* ====== Реакция фона на курсор (аккуратно и дёшево) ====== */
-// Удаляем случайный одиночный символ "<", если он оказался текстовым узлом в body
-document.addEventListener('DOMContentLoaded', ()=>{
-  for(const node of Array.from(document.body.childNodes)){
-    if(node.nodeType===3 && node.nodeValue && node.nodeValue.trim()==='<') node.parentNode.removeChild(node);
-  }
-});
-
 addEventListener('pointermove', (e)=>{
   const x = (e.clientX / innerWidth * 100).toFixed(2) + '%';
   const y = (e.clientY / innerHeight * 100).toFixed(2) + '%';
@@ -355,7 +349,7 @@ btnRecord.addEventListener('click', async ()=>{
     // Blob+отправка только после полной остановки (включая финальный чанк)
     mediaRecorder.onstop = ()=> {
       clearInterval(recT); recTimer.textContent='';
-      let type = mediaRecorder.mimeType || (recChunks[0]?.type) || '';
+      let type = mediaRecorder.mimeType || (recChunks[0] && recChunks[0].type) || '';
       if (!type) {
         const ua = (navigator.userAgent || '').toLowerCase();
         // В Firefox чаще всего контейнер OGG, если тип не установлен
@@ -414,7 +408,7 @@ async function startUpload(file){
 
   connectWS(jobId);
 }
-cancelBtn.addEventListener('click', ()=>{ try{ ws?.close?.(); }catch{} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Отменено'; });
+cancelBtn.addEventListener('click', ()=>{ try{ if(ws && typeof ws.close==='function') ws.close(); }catch(e){} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Отменено'; });
 
 function handleProgress(p){
   if (typeof p.progress==='number'){
@@ -422,8 +416,8 @@ function handleProgress(p){
     bar.style.width = v + '%';
     if(pct) pct.textContent = String(Math.round(v)) + '%';
   }
-  if (p.status==='ready'){ try{ ws?.close?.(); }catch{} if(poll){ clearInterval(poll); poll=null; } loadResult(); }
-  if (p.status==='error'){ try{ ws?.close?.(); }catch{} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Ошибка обработки'; }
+  if (p.status==='ready'){ try{ if(ws && typeof ws.close==='function') ws.close(); }catch(e){} if(poll){ clearInterval(poll); poll=null; } loadResult(); }
+  if (p.status==='error'){ try{ if(ws && typeof ws.close==='function') ws.close(); }catch(e){} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Ошибка обработки'; }
   if (p.message){ statusText.textContent = p.message; }
 }
 
@@ -478,6 +472,8 @@ dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.prev
 /* Открытие/Закрытие модалок */
 function showModal(id){
   document.getElementById(id).classList.remove("hidden");
+  if(id === "modalRegister"){ const b = document.getElementById("btnRegisterSubmit"); if(b) b.onclick = doRegister; }
+  if(id === "modalLogin"){ const b = document.getElementById("btnLoginSubmit"); if(b) b.onclick = doLogin; }
 }
 
 function hideModal(id){
@@ -496,13 +492,77 @@ function showError(msg){
   setTimeout(()=> t.remove(), 3000);
 }
 
+function showSuccess(msg){
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.style.background = "var(--success)";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 3000);
+}
+
+/*JWT-хранилище*/
+function saveTokens(tokens){
+  try{
+    localStorage.setItem('s2md_access', tokens.access_token || '');
+    localStorage.setItem('s2md_refresh', tokens.refresh_token || '');
+  }catch{}
+}
+
+async function fetchAndSaveUser(){
+  const acc = localStorage.getItem('s2md_access') || '';
+  if(!acc) return;
+  try{
+    const r = await fetch('/api/me', { headers:{ 'Authorization': 'Bearer ' + acc } });
+    if(r.ok){ const u = await r.json(); try{ localStorage.setItem('s2md_user', JSON.stringify(u)); }catch{} }
+  }catch{}
+}
+
+function getUser(){
+  try{ return JSON.parse(localStorage.getItem('s2md_user')||'null'); }catch{ return null }
+}
+
+function confetti(){
+  const c = document.createElement('div');
+  c.style.position = 'fixed';
+  c.style.left = '0';
+  c.style.top = '0';
+  c.style.pointerEvents = 'none';
+  c.style.zIndex = '1000';
+  c.style.width = '100%';
+  c.style.height = '100%';
+  document.body.appendChild(c);
+  const colors = ['#58A6FF','#3FB950','#F85149','#FFD33D','#B887FF'];
+  const count = 80;
+  for(let i=0;i<count;i++){
+    const p = document.createElement('div');
+    p.style.position = 'absolute';
+    p.style.width = '8px';
+    p.style.height = '14px';
+    p.style.background = colors[Math.floor(Math.random()*colors.length)];
+    p.style.left = (Math.random()*innerWidth) + 'px';
+    p.style.top = '-20px';
+    p.style.opacity = '1';
+    p.style.transform = 'translateY(0) rotate(0deg)';
+    p.style.borderRadius = '3px';
+    p.style.transition = 'transform 1.6s ease, opacity 1.6s ease';
+    c.appendChild(p);
+    const dx = (Math.random()-0.5)*160;
+    const dy = innerHeight + Math.random()*200;
+    const rot = Math.random()*720;
+    setTimeout(()=>{ p.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`; p.style.opacity = '0'; }, 20);
+  }
+  setTimeout(()=>{ c.remove(); }, 1800);
+}
+
 /* Регистрация */
-document.getElementById("btnRegisterSubmit").onclick = async () => {
-  const payload = {
-    name: document.getElementById("regName").value,
-    email: document.getElementById("regEmail").value,
-    password: document.getElementById("regPassword").value,
-  };
+async function doRegister(){
+  const username = document.getElementById("regUsername").value.trim();
+  const password = document.getElementById("regPassword").value;
+  const full_name = document.getElementById("regFullname").value.trim();
+  if(!username) return showError("Введите логин");
+  if((password||"").length < 8) return showError("Пароль не менее 8 символов");
+  const payload = { username, password, full_name };
 
   const r = await fetch("/api/auth/register", {
     method: "POST",
@@ -510,25 +570,36 @@ document.getElementById("btnRegisterSubmit").onclick = async () => {
     body: JSON.stringify(payload)
   });
 
-  if (r.status === 400) return showError("Ошибка регистрации");
+  if (r.status === 400){
+    let msg = "Ошибка регистрации";
+    try{ const e = await r.json(); msg = e?.error || msg; }catch{}
+    return showError(msg);
+  }
 
   if (!r.ok) return showError("Сервер недоступен");
-
-  const data = await r.json();
-
-  // сохранить токены (функция будет в JWT-клиенте)
-  saveTokens(data);
-
+  // успешная регистрация → сразу логин по тем же данным
+  const lr = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ username: payload.username, password: payload.password })
+  });
+  if (!lr.ok) return showError("Логин после регистрации не прошёл");
+  const tokens = await lr.json();
+  saveTokens(tokens);
+  await fetchAndSaveUser();
   hideModal("modalRegister");
   updateHeaderAuth();
-};
+  showSuccess("Регистрация успешна");
+  confetti();
+}
 
 /* Вход */
-document.getElementById("btnLoginSubmit").onclick = async () => {
-  const payload = {
-    email: document.getElementById("loginEmail").value,
-    password: document.getElementById("loginPassword").value,
-  };
+async function doLogin(){
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  if(!username) return showError("Введите логин");
+  if(!password) return showError("Введите пароль");
+  const payload = { username, password };
 
   const r = await fetch("/api/auth/login", {
     method:"POST",
@@ -543,10 +614,11 @@ document.getElementById("btnLoginSubmit").onclick = async () => {
   const data = await r.json();
 
   saveTokens(data);
+  await fetchAndSaveUser();
 
   hideModal("modalLogin");
   updateHeaderAuth();
-};
+}
 
 /* Смена состояния хедера («гость ↔ залогинен») */
 function updateHeaderAuth(){
@@ -564,8 +636,8 @@ function updateHeaderAuth(){
   }
 
   box.innerHTML = `
-    <span>${user.name}</span>
-    <span class="badge badge-${user.plan}">${user.plan}</span>
+    <span>${user.username || 'user'}</span>
+    <span class="badge badge-${user.plan || 'free'}">${user.plan || 'free'}</span>
   `;
 }
 
@@ -577,129 +649,71 @@ function updateHeaderAuth(){
 <!-- Markdown render (marked) -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-<!-- Trailing Grid (p5.js) sketch -->
 <script>
-(function () {
-  const HOST = document.getElementById('trail-grid');
-  if(!HOST) return;
+const sketch = (p) => {
+  let particles = [];
+  const density = 150;
 
-  const CONFIG = {
-    cell: 36,
-    margin: 48,
-    influence: 160, // distance in px where lines light up
-    baseAlpha: 24,  // base line alpha (0-255)
-    highlightAlpha: 220, // max alpha for highlighted line
-    lineWidth: 1.2,
-    maxPoints: 2500
+  p.setup = () => {
+    const c = p.createCanvas(p.windowWidth, p.windowHeight);
+    c.parent('bg-canvas');
+    for(let i = 0; i < (p.width * p.height) / 12000; i++){
+      particles.push(new Particle(p));
+    }
   };
 
-  new p5((p) => {
-    let pts = [];
-    let cols = 0, rows = 0, cell = CONFIG.cell;
-    let mpos;
-    let w = 0, h = 0;
+  p.windowResized = () => { p.resizeCanvas(p.windowWidth, p.windowHeight); };
 
-    function rebuild() {
-      w = HOST.clientWidth || window.innerWidth;
-      h = HOST.clientHeight || window.innerHeight;
-      if (!p.canvas) p.createCanvas(w, h); else p.resizeCanvas(w, h, true);
-      cell = CONFIG.cell;
-      cols = Math.max(1, Math.floor((w - CONFIG.margin * 2) / cell));
-      rows = Math.max(1, Math.floor((h - CONFIG.margin * 2) / cell));
-      const total = cols * rows;
-      const stride = total > CONFIG.maxPoints ? Math.ceil(total / CONFIG.maxPoints) : 1;
-      pts = [];
-      let idx = 0;
-      // make grid cover full viewport without visible margins
-      const startX = -cell;
-      const startY = -cell;
-      const fullCols = Math.ceil(w / cell) + 3;
-      const fullRows = Math.ceil(h / cell) + 3;
-      for (let r = 0; r < fullRows; r++){
-        for (let c = 0; c < fullCols; c++){
-          if ((idx++ % stride) !== 0) continue;
-          const x0 = startX + c * cell;
-          const y0 = startY + r * cell;
-          pts.push({ x0, y0, c, r, i: pts.length, neigh: {} });
+  p.draw = () => {
+    p.clear();
+    for(let i = 0; i < particles.length; i++){
+      const p1 = particles[i];
+      p1.update();
+      p1.draw();
+      const dMouse = p.dist(p.mouseX, p.mouseY, p1.pos.x, p1.pos.y);
+      if(dMouse < 250){
+        p1.pos.x += (p.mouseX - p1.pos.x) * 0.005;
+        p1.pos.y += (p.mouseY - p1.pos.y) * 0.005;
+      }
+      for(let j = i; j < particles.length; j++){
+        const p2 = particles[j];
+        const d = p.dist(p1.pos.x, p1.pos.y, p2.pos.x, p2.pos.y);
+        if(d < 120){
+          const alpha = p.map(d, 0, 120, 150, 0);
+          p.stroke(100, 200, 255, alpha * 0.3);
+          p.strokeWeight(1);
+          p.line(p1.pos.x, p1.pos.y, p2.pos.x, p2.pos.y);
         }
-      }
-      // assign neighbors by spatial lookup (approximate grid coords)
-      const grid = {};
-      for(const pnt of pts){
-        const key = `${Math.round(pnt.x0)},${Math.round(pnt.y0)}`;
-        grid[key] = pnt;
-      }
-      function findAt(x,y){ return grid[`${Math.round(x)},${Math.round(y)}`]; }
-      for(const pnt of pts){
-        // neighbours are at +/- cell offsets
-        const up = findAt(pnt.x0, pnt.y0 - cell); if(up) pnt.neigh.up = up;
-        const down = findAt(pnt.x0, pnt.y0 + cell); if(down) pnt.neigh.down = down;
-        const left = findAt(pnt.x0 - cell, pnt.y0); if(left) pnt.neigh.left = left;
-        const right = findAt(pnt.x0 + cell, pnt.y0); if(right) pnt.neigh.right = right;
       }
     }
+  };
 
-    p.setup = () => {
-      rebuild();
-      p.pixelDensity(Math.max(1, Math.min(2, window.devicePixelRatio || 1)));
-      p.noStroke();
-      mpos = p.createVector(w * 0.5, h * 0.5);
-    };
-
-    p.windowResized = rebuild;
-
-    p.mouseMoved = () => { mpos.set(p.mouseX, p.mouseY); };
-    p.touchMoved = () => { if (p.touches && p.touches.length){ const t = p.touches[p.touches.length - 1]; mpos.set(t.x, t.y); } return false; };
-
-    document.addEventListener('visibilitychange', () => { if (document.hidden) p.noLoop(); else p.loop(); });
-
-    p.draw = () => {
-      p.clear();
-      // draw faint base lines
-      p.strokeWeight(CONFIG.lineWidth);
-      for(const pt of pts){
-        for(const dir of ['right','down']){
-          const nb = pt.neigh[dir];
-          if(!nb) continue;
-          p.stroke(88,166,255, CONFIG.baseAlpha);
-          p.line(pt.x0, pt.y0, nb.x0, nb.y0);
-        }
-      }
-
-      // highlight lines near cursor
-      for(const pt of pts){
-        const d = p.dist(mpos.x, mpos.y, pt.x0, pt.y0);
-        if(d > CONFIG.influence) continue;
-        const t = 1 - (d / CONFIG.influence);
-        const alpha = Math.round(CONFIG.highlightAlpha * t);
-        p.stroke(88,166,255, alpha);
-        p.strokeWeight(CONFIG.lineWidth + 1.2 * t);
-        // draw lines to all 4 neighbors (will overlap but that's fine)
-        for(const dir of ['up','right','down','left']){
-          const nb = pt.neigh[dir]; if(!nb) continue;
-          p.line(pt.x0, pt.y0, nb.x0, nb.y0);
-        }
-      }
-    };
-
-  }, HOST);
-
-  // toggle button
-  const btn = document.getElementById('trailToggle');
-  let enabled = true;
-  btn.addEventListener('click', ()=>{
-    enabled = !enabled; btn.setAttribute('aria-pressed', String(enabled));
-    document.body.classList.toggle('trail-disabled', !enabled);
-    const canv = HOST.querySelector('canvas'); if(canv){ const sketch = canv._pInst; if(sketch){ if(!enabled) sketch.noLoop(); else sketch.loop(); }}
-  });
-
-})();
+  class Particle {
+    constructor(p){
+      this.p = p;
+      this.pos = p.createVector(Math.random() * p.width, Math.random() * p.height);
+      this.vel = p.createVector((Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5);
+      this.size = Math.random() * 2;
+    }
+    update(){
+      this.pos.add(this.vel);
+      if(this.pos.x < 0 || this.pos.x > this.p.width) this.vel.x *= -1;
+      if(this.pos.y < 0 || this.pos.y > this.p.height) this.vel.y *= -1;
+    }
+    draw(){
+      this.p.noStroke();
+      this.p.fill(200, 230, 255, 150);
+      this.p.circle(this.pos.x, this.pos.y, this.size);
+    }
+  }
+};
+new p5(sketch);
 </script>
 <!-- модалка входа -->
 <div id="modalLogin" class="modal hidden">
   <div class="modal-box">
     <h3>Вход</h3>
-    <input id="loginEmail" type="email" placeholder="Email">
+    <input id="loginUsername" type="text" placeholder="Логин">
     <input id="loginPassword" type="password" placeholder="Пароль">
     <button id="btnLoginSubmit" class="btn btn-primary">Войти</button>
     <button class="btn btn-ghost" onclick="hideModal('modalLogin')">Закрыть</button>
@@ -710,8 +724,8 @@ function updateHeaderAuth(){
 <div id="modalRegister" class="modal hidden">
   <div class="modal-box">
     <h3>Регистрация</h3>
-    <input id="regName" type="text" placeholder="Имя">
-    <input id="regEmail" type="email" placeholder="Email">
+    <input id="regUsername" type="text" placeholder="Логин">
+    <input id="regFullname" type="text" placeholder="Имя (необязательно)">
     <input id="regPassword" type="password" placeholder="Пароль">
     <button id="btnRegisterSubmit" class="btn btn-primary">Зарегистрироваться</button>
     <button class="btn btn-ghost" onclick="hideModal('modalRegister')">Закрыть</button>
