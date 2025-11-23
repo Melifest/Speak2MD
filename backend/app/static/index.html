@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  /* ====== Токены (взяты из стайл-гайда, адаптированы под новый градиент) ====== */
+  /*Токены (взяты из стайл-гайда, адаптированы под новый градиент*/
   :root{
     --bg1:#303D63; /* светлее (лево-верх) */
     --bg2:#0D1117; /* темнее (право-низ) */
@@ -19,19 +19,19 @@
     --radius:14px; --container:880px;
   }
 
-  /* ====== Базовый фон с вариантами градиентов (легко переключать классом на body) ====== */
+  /* Базовый фон с вариантами градиентов */
   body{
     margin:0;color:var(--text);font:400 16px/1.5 Inter,system-ui,sans-serif;
     min-height:100dvh;
     background: linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 100%);
     transition: background-position .25s ease;
   }
-  /* Альтернативы — добавьте на <body> класс .bg-alt-1 / .bg-alt-2 / .bg-alt-3 */
+  /* альтернативы — добавьте на <body> класс .bg-alt-1 / .bg-alt-2 / .bg-alt-3 */
   body.bg-alt-1{ background: linear-gradient(90deg, #054c76, #0c192a, #471c3a); }
   body.bg-alt-2{ background: linear-gradient(90deg, #15173c, #2375ef); }
   body.bg-alt-3{ background: linear-gradient(90deg, #050d33, #2974a3); }
 
-  /* ====== Layout ====== */
+  /* Layou*/
   .container{max-width:var(--container);margin:0 auto;padding:24px}
   *,*::before,*::after{ box-sizing: border-box }
   html, body{ width:100%; overflow-x:hidden }
@@ -228,6 +228,7 @@
   <header>
     <div class="container header-bar">
       <a href="#" class="logo"><div class="logo-icon"></div>Speak2MD</a>
+      <button id="btnOpenTranscripts" class="btn btn-ghost">Мои транскрипты</button>
 
       <div id="headerAuth">
          <!-- Если НЕ залогинен → кнопки -->
@@ -296,6 +297,17 @@
         <h3 style="color:#fff; margin-top:0">📝 Готовый Markdown</h3>
         <p style="color:var(--muted); font-size:14px; line-height:1.6">Заголовки, списки, таймкоды; экспорт в .md и JSON для дальнейшей работы.</p>
       </div>
+    </div>
+  </section>
+  <!-- Мои транскрипты (отдельная секция) -->
+  <section id="transcriptsSec" class="container" style="display:none; position:relative; z-index:12">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:14px">
+      <h2 style="margin:0">Мои транскрипты</h2>
+      <input id="transcriptsQ" placeholder="Поиск" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:240px" />
+    </div>
+    <div id="transcriptsList" class="grid"></div>
+    <div class="row" style="margin-top:16px">
+      <button id="btnBackHome" class="btn btn-ghost">Назад</button>
     </div>
   </section>
 
@@ -398,7 +410,7 @@ async function startUpload(file){
   if (file.size > 50*1024*1024){ alert('Файл больше 50 МБ'); return; } /* FR-002 */
 
   const fd = new FormData(); fd.append('file', file);
-  const res = await fetch('/api/upload', {method:'POST', body:fd});
+  const res = await auth.fetchWithAuth('/api/upload', {method:'POST', body:fd});
   if(!res.ok){ alert('Ошибка загрузки'); return; }
   const data = await res.json(); jobId = data.job_id;
 
@@ -482,6 +494,7 @@ function hideModal(id){
 
 document.getElementById("btnLoginOpen").onclick = () => showModal("modalLogin");
 document.getElementById("btnRegisterOpen").onclick = () => showModal("modalRegister");
+{ const b = document.getElementById("btnOpenTranscripts"); if(b) b.onclick = () => showTranscripts(); }
 
 /* Ошибка */
 function showError(msg){
@@ -501,7 +514,39 @@ function showSuccess(msg){
   setTimeout(()=> t.remove(), 3000);
 }
 
-/*JWT-хранилище*/
+//auth‑клиент: хранение токенов + refresh
+const auth = (function(){
+  let accessToken = null;
+  let refreshToken = null;
+  function load(){
+    accessToken = localStorage.getItem('s2md_access') || null; // ну тип читаем
+    refreshToken = localStorage.getItem('s2md_refresh') || null;
+  }
+  function save(a,r){
+    accessToken = a || null;
+    refreshToken = r || null;
+    try{ localStorage.setItem('s2md_access', a || ''); localStorage.setItem('s2md_refresh', r || ''); }catch{}
+  }
+  async function fetchWithAuth(url, options){
+    const opts = Object.assign({}, options||{});
+    opts.headers = opts.headers || {};
+    if(accessToken){ opts.headers['Authorization'] = 'Bearer ' + accessToken; }
+    let res = await fetch(url, opts);
+    if(res.status === 401 && refreshToken){
+      const r = await fetch('/api/auth/refresh', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ refresh_token: refreshToken }) });
+      if(r.ok){ const data = await r.json(); save(data.access_token, data.refresh_token); opts.headers['Authorization'] = 'Bearer ' + (data.access_token||''); res = await fetch(url, opts); }
+    }
+    return res;
+  }
+  function clear(){
+    accessToken = null; refreshToken = null;
+    try{ localStorage.removeItem('s2md_access'); localStorage.removeItem('s2md_refresh'); localStorage.removeItem('s2md_user'); }catch{}
+  }
+  load();
+  return { save, fetchWithAuth, clear };
+})();
+
+/*ЖВТ-хранилище*/
 function saveTokens(tokens){
   try{
     localStorage.setItem('s2md_access', tokens.access_token || '');
@@ -513,7 +558,7 @@ async function fetchAndSaveUser(){
   const acc = localStorage.getItem('s2md_access') || '';
   if(!acc) return;
   try{
-    const r = await fetch('/api/me', { headers:{ 'Authorization': 'Bearer ' + acc } });
+    const r = await auth.fetchWithAuth('/api/me');
     if(r.ok){ const u = await r.json(); try{ localStorage.setItem('s2md_user', JSON.stringify(u)); }catch{} }
   }catch{}
 }
@@ -585,7 +630,7 @@ async function doRegister(){
   });
   if (!lr.ok) return showError("Логин после регистрации не прошёл");
   const tokens = await lr.json();
-  saveTokens(tokens);
+  auth.save(tokens.access_token, tokens.refresh_token);
   await fetchAndSaveUser();
   hideModal("modalRegister");
   updateHeaderAuth();
@@ -608,12 +653,9 @@ async function doLogin(){
   });
 
   if (r.status === 401) return showError("Неверный логин или пароль");
-
   if (!r.ok) return showError("Ошибка сервера");
-
   const data = await r.json();
-
-  saveTokens(data);
+  auth.save(data.access_token, data.refresh_token);
   await fetchAndSaveUser();
 
   hideModal("modalLogin");
@@ -638,8 +680,103 @@ function updateHeaderAuth(){
   box.innerHTML = `
     <span>${user.username || 'user'}</span>
     <span class="badge badge-${user.plan || 'free'}">${user.plan || 'free'}</span>
+    <button id="btnLogout" class="btn btn-ghost" style="padding:6px 8px; opacity:.8">Выйти</button>
   `;
+  const bl = document.getElementById('btnLogout');
+  if(bl){ bl.onclick = ()=>{ auth.clear(); const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; updateHeaderAuth(); showSuccess('Вы вышли'); }; }
 }
+
+// открыть секцию «мои транскрипты» 
+function showTranscripts(){
+  const sec = document.getElementById('transcriptsSec');
+  if(!sec) return;
+  sec.style.display = 'block';
+  const hero = document.querySelector('main.container.hero');
+  if(hero) hero.style.display = 'none';
+  loadTranscripts('');
+  const q = document.getElementById('transcriptsQ'); if(q){ q.focus(); /* ну чтоб сразу печатать */ }
+}
+
+// отрисовать карточки транскриптов (простые .card)
+function renderTranscripts(items){
+  const box = document.getElementById('transcriptsList');
+  if(!box) return;
+  box.innerHTML = '';
+  for(const it of (items||[])){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cursor = 'pointer';
+    const title = String(it.title||'Без названия');
+    const dt = it.created_at ? new Date(it.created_at) : null;
+    const dd = dt ? dt.toLocaleString('ru-RU') : '';
+    const mins = typeof it.duration_sec === 'number' ? Math.floor(it.duration_sec/60) : 0;
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <strong>${title}</strong>
+        <div class="row" style="gap:8px">
+          <span class="badge badge-ready">${(it.status||'ready')}</span>
+          <button class="btn btn-ghost" style="padding:8px 10px">Удалить</button>
+        </div>
+      </div>
+      <div class="muted" style="font-size:13px">${dd}</div>
+      <div class="muted" style="font-size:13px">длина: ${mins} мин</div>
+    `;
+    card.onclick = ()=> openTranscript(it.id, title);
+    const delBtn = card.querySelector('button.btn.btn-ghost');
+    if(delBtn){ delBtn.onclick = (e)=>{ e.stopPropagation(); deleteTranscript(it.id); }; }
+    box.appendChild(card);
+  }
+}
+
+//грузим мои транскрипты ( тип список)
+async function loadTranscripts(q=''){
+  try{
+    const res = await auth.fetchWithAuth('/api/transcripts?limit=50&offset=0');
+    if(!res.ok){ if(res.status===401) return showError('Нужно войти'); return showError('Не удалось загрузить'); }
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    const ql = String(q||'').toLowerCase();
+    const filtered = ql ? items.filter(it => String(it.title||'').toLowerCase().includes(ql)) : items;
+    renderTranscripts(filtered);
+  }catch{ showError('сетевой улетел'); }
+}
+
+// открыть одну запись → модалка с Markdown (красивооо)
+async function openTranscript(id, title){
+  try{
+    const r = await auth.fetchWithAuth(`/api/transcripts/${id}?format=markdown`);
+    if(!r.ok){ return showError('не удалось открыть'); }
+    const md = await r.text();
+    const t = document.getElementById('trTitle'); if(t) t.textContent = title || ('Transcript '+id);
+    const c = document.getElementById('trContent');
+    if(c){ c.innerHTML = (window.marked && window.marked.parse) ? window.marked.parse(md) : md; }
+    showModal('modalTranscript');
+  }catch{ showError('сетевой улетел'); }
+}
+
+// удалить запись (спросим подтверждени)
+async function deleteTranscript(id){
+  if(!id) return;
+  if(!confirm('Точно удалить?')) return;
+  try{
+    const r = await auth.fetchWithAuth(`/api/transcripts/${id}`, { method:'DELETE' });
+    if(!r.ok){ return showError('не удалилось'); }
+    showSuccess('Удалено');
+    const q = document.getElementById('transcriptsQ');
+    const val = q ? String(q.value||'').trim() : '';
+    await loadTranscripts(val);
+  }catch{ showError('сетевой улетел'); }
+}
+
+// поиск и «назад»
+document.addEventListener('DOMContentLoaded', async ()=>{
+  const q = document.getElementById('transcriptsQ');
+  if(q){ q.addEventListener('input', (e)=> loadTranscripts(String(e.target.value||'').trim())); }
+  const back = document.getElementById('btnBackHome');
+  if(back){ back.onclick = ()=>{ const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; } };
+  try{ await fetchAndSaveUser(); }catch{}
+  updateHeaderAuth(); //восстановим состояние
+});
 
 // p5.js trailing grid implementation will be loaded below
 </script>
@@ -648,6 +785,15 @@ function updateHeaderAuth(){
 
 <!-- Markdown render (marked) -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<!-- модалка просмотра транскрипта -->
+<div id="modalTranscript" class="modal hidden">
+  <div class="modal-box" style="width:640px; max-height:70vh; overflow:auto">
+    <h3 id="trTitle">Транскрипт</h3>
+    <div id="trContent" class="preview" style="display:block"></div>
+    <button class="btn btn-ghost" onclick="hideModal('modalTranscript')">Закрыть</button>
+  </div>
+</div>
 
 <script>
 const sketch = (p) => {
