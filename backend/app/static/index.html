@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Speak2MD — из аудио в Markdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /*Токены (взяты из стайл-гайда, адаптированы под новый градиент*/
+  :root{
+    --bg1:#303D63; /* светлее (лево-верх) */
+    --bg2:#0D1117; /* темнее (право-низ) */
+    --text:#C9D1D9; --muted:#8B949E;
+    --surface:#161B22; --border:#30363D;
+    --accent:#58A6FF; --accent-2:#1F6FEB;
+    --error:#F85149; --success:#3FB950;
+    --radius:14px; --container:880px;
+  }
+
+  /* Базовый фон с вариантами градиентов */
+  body{
+    margin:0;color:var(--text);font:400 16px/1.5 Inter,system-ui,sans-serif;
+    min-height:100dvh;
+    background: linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 100%);
+    transition: background-position .25s ease;
+  }
+  /* альтернативы — добавьте на <body> класс .bg-alt-1 / .bg-alt-2 / .bg-alt-3 */
+  body.bg-alt-1{ background: linear-gradient(90deg, #054c76, #0c192a, #471c3a); }
+  body.bg-alt-2{ background: linear-gradient(90deg, #15173c, #2375ef); }
+  body.bg-alt-3{ background: linear-gradient(90deg, #050d33, #2974a3); }
+
+  /* Layou*/
+  .container{max-width:var(--container);margin:0 auto;padding:24px}
+  *,*::before,*::after{ box-sizing: border-box }
+  html, body{ width:100%; overflow-x:hidden }
+  header{
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(13,17,23,.72);
+    border-bottom: 1px solid var(--border);
+    isolation: isolate;
+  }
+  header .header-bar{
+    position: relative;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;flex-wrap:wrap;
+    width:100%;
+    padding:14px 24px;border-bottom:0;
+  }
+  #headerAuth{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
+  header .header-bar::before{
+    content:"";
+    position:absolute; inset:0;
+    pointer-events:none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 0;
+  }
+  header .header-bar > *{ position:relative; z-index:1; }
+  a{color:var(--text);text-decoration:none}
+  a:hover{color:#fff}
+  #bg-canvas{ position: fixed; inset: 0; z-index: 0; mix-blend-mode: screen; opacity: .6 }
+  .logo{ font-weight: 700; font-size: 20px; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 10px }
+  .logo-icon{ width: 24px; height: 24px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-radius: 6px; box-shadow: 0 0 12px var(--accent) }
+
+  /* ====== Центр: единая панель Upload+Record ====== */
+  .hero{display:grid;place-items:center;padding:8dvh 0}
+  .glass-panel{ position: relative; width: 100%; background: rgba(22,27,34,.65); backdrop-filter: blur(24px); border-radius: 24px; padding: 48px; box-shadow: 0 24px 60px -12px rgba(0,0,0,.6); background-clip: padding-box; border: 1px solid transparent; max-width: 880px; animation: fadeIn .5s ease both }
+  .title-main{ font-size:42px; font-weight:700; margin:0 0 16px; text-align:center; line-height:1.1; background: linear-gradient(135deg, #fff 0%, #b0c4de 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(255,255,255,.1) }
+  .title-sub{ text-align:center; color: var(--muted); font-size:18px; max-width:600px; margin:0 auto 40px }
+  /* "Свет за карточкой" — мягкая подсветка без тяжёлого blur'а */
+  .panel::before{ display:none }
+  .panel:hover::before{ transform:none }
+
+  .h1{font-weight:600;font-size:30px;margin:0 0 10px}
+  .muted{color:var(--muted)}
+
+  /* Dropzone + Record = единая «кнопочная» область */
+  .dropzone{ position: relative; border: 2px dashed rgba(255,255,255,.1); border-radius: 16px; background: rgba(0,0,0,.2); padding: 40px; text-align: center; transition: all .3s cubic-bezier(.175,.885,.32,1.275); cursor: pointer; overflow: hidden; display:block; width:100%; max-width:560px; margin:0 auto; box-sizing:border-box }
+  .dropzone:hover{ border-color: var(--accent-2); background: rgba(88,166,255,.03); transform: scale(1.01); box-shadow: 0 10px 30px -10px rgba(88,166,255,.15) }
+  .dropzone.active{ border-color: var(--accent); background: rgba(88,166,255,.1) }
+  .dropzone input{ display: none }
+  .dropzone:focus{ outline: none }
+  .dz-icon{ width:56px; height:56px; margin:0 auto 16px; background: rgba(255,255,255,.05); border-radius: 50%; display:flex; align-items:center; justify-content:center; color: var(--muted); transition:.3s }
+  .dropzone:hover .dz-icon{ background: var(--accent-2); color: #fff; box-shadow: 0 0 20px var(--accent-2) }
+
+  .row{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .actions-row{ display:flex; gap:16px; justify-content:center; margin-top: 32px; flex-wrap:wrap }
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;padding:12px 16px;font-weight:500;cursor:pointer;
+    transition:transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, background .18s ease, color .18s ease;
+    will-change:transform,box-shadow,background;
+  }
+  .btn:active{ transform: translateY(1px) }
+  .btn:focus-visible{ outline: 2px solid var(--accent); outline-offset:2px }
+
+  /* Primary CTA */
+  .btn-primary{
+    background:linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+    color:#fff; box-shadow:0 10px 24px rgba(88,166,255,.25);
+  }
+  .btn-primary:hover,
+  .btn-primary:focus{ background:linear-gradient(90deg, #1F6FEB 0%, var(--accent-2) 100%); transform:translateY(-2px); box-shadow:0 18px 40px rgba(31,111,235,.28) }
+
+  /* Ghost / secondary */
+  .btn-ghost{ background:transparent; color:var(--accent); border:1px solid rgba(88,166,255,.18) }
+  .btn-ghost:hover, .btn-ghost:focus{ background:rgba(88,166,255,.06); border-color:var(--accent); color:#FFFFFF; transform:translateY(-2px); box-shadow:0 8px 20px rgba(88,166,255,.12) }
+  .badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px}
+  .badge-ready{background:var(--success);color:#0D1117}
+
+  /* Прогресс (липкий) */
+  .sticky{ position:sticky; top:72px; z-index:12; margin-top:16px }
+  .progress-wrap{ height:6px; background: rgba(255,255,255,.05); border-radius: 10px; overflow: hidden; margin-top: 10px }
+  .progress-fill{ height:100%; width:0; background: linear-gradient(90deg, var(--accent-2), var(--accent)); box-shadow: 0 0 15px var(--accent-2); transition: width .3s; position: relative }
+  .progress-fill::after{ content:""; position:absolute; inset:0; background: linear-gradient(90deg, transparent, #fff, transparent); opacity:.4; transform: translateX(-100%); animation: shimmer 1.5s infinite }
+
+  /* Markdown Preview */
+  .preview{display:none;margin-top:30px;background:#050608;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:24px;white-space:pre-wrap;font-family:'JetBrains Mono', monospace; font-size:13px; line-height:1.6; max-height:400px; overflow:auto; box-shadow: inset 0 2px 10px rgba(0,0,0,.5); color:#d1d5db}
+  .preview::-webkit-scrollbar{ width:8px }
+  .preview::-webkit-scrollbar-thumb{ background:#333; border-radius:4px }
+  .meta{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px}
+
+  /* Микрофон: минималистичные "bars" во время записи */
+  .bars{display:inline-flex;gap:4px;height:24px;align-items:flex-end;margin-left:10px}
+  .barv{width:3px;height:6px;background:#30363D;border-radius:2px;animation:bars 1s ease-in-out infinite}
+  .barv:nth-child(2){animation-delay:.1s}.barv:nth-child(3){animation-delay:.2s}.barv:nth-child(4){animation-delay:.3s}.barv:nth-child(5){animation-delay:.4s}
+
+  /* «Как это работает» */
+  /* Всегда поверх фонового грida (p5 canvas) */
+  .how{margin:72px 0; position:relative; z-index:2}
+  .how{margin:72px 0; display:flex;flex-direction:column;align-items:center}
+  .how h2{ text-align:center; }
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;justify-items:center;max-width:var(--container);width:100%;}
+  .card{background:#161B22;border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(88,166,255,.15)}
+
+  /* Анимации */
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  @keyframes bars{0%,100%{height:6px;background:#30363D}50%{height:24px;background:var(--accent)}}
+
+  /* Доступность и адаптив */
+  .sr-only{position:absolute;left:-9999px}
+
+  /* ВКЛ по необходимости: <body class="debug-noblur"> */
+  .debug-noblur *{
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+  /* Force the .how section itself to be centered in the viewport */
+  section.how.container{ max-width:100%; width:100%; padding-left:24px; padding-right:24px; box-sizing:border-box }
+  section.how{ display:flex; justify-content:center }
+  .how > .grid{ margin:0 auto; max-width:var(--container); }
+  @media (max-width:960px){ .grid{grid-template-columns:1fr} .container{padding:18px} .panel{padding:22px} }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important;transition:none !important}
+  }
+
+  /* Trailing grid container (p5.js) */
+  .features-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:24px; margin-top:60px }
+  .feature-card{ background: rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05); border-radius:16px; padding:24px; transition:.3s; position:relative; overflow:hidden }
+  .feature-card:hover{ transform: translateY(-5px); background: rgba(255,255,255,.06); border-color: var(--accent-2) }
+  .feature-card::before{ content:""; position:absolute; top:-50px; right:-50px; width:100px; height:100px; background: var(--accent-2); filter: blur(60px); opacity:0; transition:.4s }
+  .feature-card:hover::before{ opacity:.2 }
+
+  /* Для модалок */
+  .modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+  }
+
+  .modal.hidden{
+  display:none;
+  }
+
+  .modal-box{
+  background:var(--surface);
+  padding:24px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  width:320px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  }
+  .modal-box input{
+    width:100%;
+    background:#0D1117;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    outline:none;
+    transition:border-color .18s, box-shadow .18s, background .18s;
+    appearance:none;
+  }
+  .modal-box input::placeholder{ color:var(--muted) }
+  .modal-box input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,166,255,.18); background:#0b1220 }
+
+  .btn-secondary{ background:#F0F6FC; color:#0D1117 }
+  .btn-secondary:hover, .btn-secondary:focus{ background:#E6EDF3; color:#0D1117; transform:translateY(-2px); box-shadow:0 8px 20px rgba(88,166,255,.12) }
+
+   /* Ошибка */
+  .toast{
+  position:fixed;
+  right:16px;
+  bottom:16px;
+  background:var(--error);
+  padding:14px 18px;
+  border-radius:10px;
+  color:#fff;
+  z-index:1000;
+  animation:fadeIn .2s ease;
+  }
+
+</style>
+</head>
+<body class="bg-alt-3">
+  <div id="bg-canvas"></div>
+  <header>
+    <div class="container header-bar">
+      <a href="#" class="logo"><div class="logo-icon"></div>Speak2MD</a>
+      <button id="btnOpenTranscripts" class="btn btn-ghost">Мои транскрипты</button>
+
+      <div id="headerAuth">
+         <!-- Если НЕ залогинен → кнопки -->
+         <button id="btnLoginOpen" class="btn btn-primary">Войти</button>
+         <button id="btnRegisterOpen" class="btn btn-secondary">Регистрация</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container hero">
+    <section class="glass-panel" aria-labelledby="title">
+      <h1 id="title" class="title-main">Из голоса в Markdown.<br>Быстро. Точно.</h1>
+      <p class="title-sub">Загрузите аудио встречи или лекции. Наш AI распознает речь и отформатирует текст.</p>
+
+      <!-- Объединённая зона: загрузка + запись -->
+      <label id="mix" class="dropzone" tabindex="0" aria-label="Загрузить аудиофайл или записать">
+        <input id="fileInput" type="file" accept=".mp3,.m4a,.wav,.webm,.ogg" />
+        <div class="dz-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div style="font-size:18px; font-weight:600; margin-bottom:4px; color:#fff">Перетащите аудио сюда</div>
+        <div style="font-size:14px; color:var(--muted)">MP3, WAV, M4A (до 50 МБ)</div>
+      </label>
+
+      <div class="actions-row">
+        <button id="btnUpload" class="btn btn-primary">Загрузить аудио</button>
+        <button id="btnRecord" class="btn btn-ghost" aria-pressed="false">
+          <span id="recLabel">Запись</span>
+          <span class="bars" aria-hidden="true"><i class="barv"></i><i class="barv"></i><i class="barv"></i><i class="barv"></i><i class="barv"></i></span>
+        </button>
+        <small id="recTimer" class="muted" aria-live="polite"></small>
+      </div>
+
+      <!-- Прогресс -->
+      <div id="statusBox" style="display:none; margin-top:16px">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px; margin-bottom:8px; color:var(--accent)">
+          <strong id="statusText">Анализ аудио...</strong>
+          <span id="pct">0%</span>
+        </div>
+        <div class="progress-wrap"><div id="bar" class="progress-fill"></div></div>
+        <button id="cancelBtn" class="btn btn-ghost" style="margin-top:8px">Отменить</button>
+      </div>
+
+      <!-- Результат -->
+      <div id="meta" class="meta" style="display:none">
+        <span class="badge badge-ready">Готово</span>
+        <div class="row">
+          <a id="dlMd" class="btn btn-primary" download>Скачать .md</a>
+          <a id="dlJson" class="btn btn-ghost" download>JSON</a>
+        </div>
+      </div>
+      <pre id="preview" class="preview" aria-label="Предпросмотр Markdown (сырой)"></pre>
+      <div id="rendered" class="preview" aria-label="Рендер Markdown (красивый)" style="display:none"></div>
+    </section>
+  </main>
+
+  <section class="container">
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3 style="color:#fff; margin-top:0">🎯 Точность распознавания</h3>
+        <p style="color:var(--muted); font-size:14px; line-height:1.6">Whisper‑класс: устойчивость к шуму, акцентам и рус/англ речам.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:#fff; margin-top:0">🗂️ Автоматическая разметка</h3>
+        <p style="color:var(--muted); font-size:14px; line-height:1.6">Автоматическая сегментация, структурирование, исправление ошибок в тексте.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:#fff; margin-top:0">📝 Готовый Markdown</h3>
+        <p style="color:var(--muted); font-size:14px; line-height:1.6">Заголовки, списки, таймкоды; экспорт в .md и JSON для дальнейшей работы.</p>
+      </div>
+    </div>
+  </section>
+  <!-- Мои транскрипты (отдельная секция) -->
+  <section id="transcriptsSec" class="container" style="display:none; position:relative; z-index:12">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:14px">
+      <h2 style="margin:0">Мои транскрипты</h2>
+      <input id="transcriptsQ" placeholder="Поиск" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:240px" />
+    </div>
+    <div id="transcriptsList" class="grid"></div>
+    <div class="row" style="margin-top:16px">
+      <button id="btnBackHome" class="btn btn-ghost">Назад</button>
+    </div>
+  </section>
+
+  <footer class="container" style="text-align:center; padding:40px; color:rgba(255,255,255,0.2); font-size:13px">Designed for Speak2MD</footer>
+
+<script>
+addEventListener('pointermove', (e)=>{
+  const x = (e.clientX / innerWidth * 100).toFixed(2) + '%';
+  const y = (e.clientY / innerHeight * 100).toFixed(2) + '%';
+  document.body.style.setProperty('--mx', x);
+  document.body.style.setProperty('--my', y);
+});
+
+/* ====== Единая панель: загрузка ====== */
+const dz = document.getElementById('mix');
+ const fileInput = document.getElementById('fileInput');
+ const pct = document.getElementById('pct');
+const btnUpload = document.getElementById('btnUpload');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('active'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('active'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('active');
+  const f = e.dataTransfer.files?.[0]; if (f) startUpload(f);
+});
+dz.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  const f = e.target.files?.[0]; if (f) startUpload(f);
+});
+btnUpload.addEventListener('click', ()=> fileInput.click());
+
+/* ====== Запись (минимум кода, максимум UX) ====== */
+const btnRecord = document.getElementById('btnRecord');
+const recLabel = document.getElementById('recLabel');
+const recTimer = document.getElementById('recTimer');
+let mediaRecorder, recChunks=[], recStart=0, recT;
+
+btnRecord.addEventListener('click', async ()=>{
+  if (!mediaRecorder || mediaRecorder.state==='inactive'){
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    // Явно выбираем поддерживаемый MIME тип с фолбэками
+    let preferred = 'audio/webm;codecs=opus';
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(preferred)){
+      preferred = MediaRecorder && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : (MediaRecorder && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+    }
+    mediaRecorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
+    recChunks = [];
+    mediaRecorder.ondataavailable = e => { if(e.data && e.data.size>0) recChunks.push(e.data); };
+    // Blob+отправка только после полной остановки (включая финальный чанк)
+    mediaRecorder.onstop = ()=> {
+      clearInterval(recT); recTimer.textContent='';
+      let type = mediaRecorder.mimeType || (recChunks[0] && recChunks[0].type) || '';
+      if (!type) {
+        const ua = (navigator.userAgent || '').toLowerCase();
+        // В Firefox чаще всего контейнер OGG, если тип не установлен
+        if (ua.includes('firefox')) type = 'audio/ogg;codecs=opus';
+        else type = 'audio/webm;codecs=opus';
+      }
+      const blob = new Blob(recChunks, { type });
+      // выберем расширение
+      let ext = 'webm';
+      const mt = String(blob.type || '').toLowerCase();
+      if (mt.includes('ogg')) ext = 'ogg';
+      else if (mt.includes('webm')) ext = 'webm';
+      else if (mt.includes('wav')) ext = 'wav';
+      else if (mt.includes('mp4')) ext = 'm4a';
+      const file = new File([blob], `record.${ext}`, { type: blob.type });
+      recChunks = [];
+      startUpload(file);
+    };
+    mediaRecorder.start(); recStart = Date.now();
+    btnRecord.setAttribute('aria-pressed','true'); recLabel.textContent='Идёт запись…';
+    recT = setInterval(()=>{
+      const s = Math.floor((Date.now()-recStart)/1000);
+      recTimer.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+    }, 500);
+  }else{
+    mediaRecorder.stop();
+    btnRecord.setAttribute('aria-pressed','false'); recLabel.textContent='Запись';
+  }
+});
+
+/* ====== Прогресс/результат ====== */
+const statusBox = document.getElementById('statusBox');
+const statusText = document.getElementById('statusText');
+const bar = document.getElementById('bar');
+const cancelBtn = document.getElementById('cancelBtn');
+const meta = document.getElementById('meta');
+const preview = document.getElementById('preview');
+const dlMd = document.getElementById('dlMd');
+const dlJson = document.getElementById('dlJson');
+let jobId=null, ws=null, poll=null;
+
+async function startUpload(file){
+  if (!/\.(mp3|m4a|wav)$/i.test(file.name) && !/webm|ogg/i.test(file.type)){
+    alert('Поддерживаются mp3/m4a/wav (запись — webm/ogg)'); return; /* FR-001 */
+  }
+  if (file.size > 50*1024*1024){ alert('Файл больше 50 МБ'); return; } /* FR-002 */
+
+  const fd = new FormData(); fd.append('file', file);
+  const res = await auth.fetchWithAuth('/api/upload', {method:'POST', body:fd});
+  if(!res.ok){ alert('Ошибка загрузки'); return; }
+  const data = await res.json(); jobId = data.job_id;
+
+  statusBox.style.display=''; meta.style.display='none'; preview.style.display='none';
+  bar.style.width='0%'; statusText.innerHTML='<strong>Обработка…</strong> (VAD → ASR → Разметка)';
+  if(pct) pct.textContent = '0%';
+
+  connectWS(jobId);
+}
+cancelBtn.addEventListener('click', ()=>{ try{ if(ws && typeof ws.close==='function') ws.close(); }catch(e){} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Отменено'; });
+
+function handleProgress(p){
+  if (typeof p.progress==='number'){
+    const v = Math.max(0, Math.min(100, p.progress));
+    bar.style.width = v + '%';
+    if(pct) pct.textContent = String(Math.round(v)) + '%';
+  }
+  if (p.status==='ready'){ try{ if(ws && typeof ws.close==='function') ws.close(); }catch(e){} if(poll){ clearInterval(poll); poll=null; } loadResult(); }
+  if (p.status==='error'){ try{ if(ws && typeof ws.close==='function') ws.close(); }catch(e){} if(poll){ clearInterval(poll); poll=null; } statusText.textContent='Ошибка обработки'; }
+  if (p.message){ statusText.textContent = p.message; }
+}
+
+function startPolling(jobId){
+  if(poll) return;
+  poll = setInterval(async ()=>{
+    try{
+      const r = await fetch(`/api/status/${jobId}`);
+      if(r.ok){ const p = await r.json(); handleProgress(p); }
+    }catch{}
+  }, 1200);
+}
+
+function connectWS(jobId){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try{
+    ws = new WebSocket(`${proto}://${location.host}/api/ws/${jobId}`);
+    ws.onmessage = (e)=>{
+      try{
+        const msg = JSON.parse(e.data);
+        if (msg && msg.event === 'progress' && msg.data){ handleProgress(msg.data); }
+      }catch{}
+    };
+    ws.onclose = ()=>{ startPolling(jobId); };
+    ws.onerror = ()=>{ try{ ws.close(); }catch{} startPolling(jobId); };
+  }catch{ startPolling(jobId); }
+}
+
+async function loadResult(){
+  statusText.textContent='Готово';
+  const md = await fetch(`/api/result/${jobId}?format=markdown`).then(r=>r.text());
+  // Заполняем сырой Markdown, но показываем только красивый рендер.
+  preview.textContent = md;
+  const rendered = document.getElementById('rendered');
+  if(window.marked && rendered){
+    rendered.innerHTML = window.marked.parse(md);
+    rendered.style.display='block';
+    preview.style.display='none';
+  } else {
+    // Фолбэк: если marked не загрузился — показываем сырой Markdown
+    preview.style.display='block';
+  }
+  if(pct) pct.textContent = '100%';
+  meta.style.display='flex';
+  dlMd.href = `/api/result/${jobId}?format=markdown`;
+  dlJson.href = `/api/result/${jobId}?format=json`;
+}
+
+/* ====== Мелкая полировка: клавиатура для dropzone ====== */
+dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); fileInput.click(); }});
+
+/* Открытие/Закрытие модалок */
+function showModal(id){
+  document.getElementById(id).classList.remove("hidden");
+  if(id === "modalRegister"){ const b = document.getElementById("btnRegisterSubmit"); if(b) b.onclick = doRegister; }
+  if(id === "modalLogin"){ const b = document.getElementById("btnLoginSubmit"); if(b) b.onclick = doLogin; }
+}
+
+function hideModal(id){
+  document.getElementById(id).classList.add("hidden");
+}
+
+document.getElementById("btnLoginOpen").onclick = () => showModal("modalLogin");
+document.getElementById("btnRegisterOpen").onclick = () => showModal("modalRegister");
+{ const b = document.getElementById("btnOpenTranscripts"); if(b) b.onclick = () => showTranscripts(); }
+
+/* Ошибка */
+function showError(msg){
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 3000);
+}
+
+function showSuccess(msg){
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.style.background = "var(--success)";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 3000);
+}
+
+//auth‑клиент: хранение токенов + refresh
+const auth = (function(){
+  let accessToken = null;
+  let refreshToken = null;
+  function load(){
+    accessToken = localStorage.getItem('s2md_access') || null; // ну тип читаем
+    refreshToken = localStorage.getItem('s2md_refresh') || null;
+  }
+  function save(a,r){
+    accessToken = a || null;
+    refreshToken = r || null;
+    try{ localStorage.setItem('s2md_access', a || ''); localStorage.setItem('s2md_refresh', r || ''); }catch{}
+  }
+  async function fetchWithAuth(url, options){
+    const opts = Object.assign({}, options||{});
+    opts.headers = opts.headers || {};
+    if(accessToken){ opts.headers['Authorization'] = 'Bearer ' + accessToken; }
+    let res = await fetch(url, opts);
+    if(res.status === 401 && refreshToken){
+      const r = await fetch('/api/auth/refresh', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ refresh_token: refreshToken }) });
+      if(r.ok){ const data = await r.json(); save(data.access_token, data.refresh_token); opts.headers['Authorization'] = 'Bearer ' + (data.access_token||''); res = await fetch(url, opts); }
+    }
+    return res;
+  }
+  function clear(){
+    accessToken = null; refreshToken = null;
+    try{ localStorage.removeItem('s2md_access'); localStorage.removeItem('s2md_refresh'); localStorage.removeItem('s2md_user'); }catch{}
+  }
+  load();
+  return { save, fetchWithAuth, clear };
+})();
+
+/*ЖВТ-хранилище*/
+function saveTokens(tokens){
+  try{
+    localStorage.setItem('s2md_access', tokens.access_token || '');
+    localStorage.setItem('s2md_refresh', tokens.refresh_token || '');
+  }catch{}
+}
+
+async function fetchAndSaveUser(){
+  const acc = localStorage.getItem('s2md_access') || '';
+  if(!acc) return;
+  try{
+    const r = await auth.fetchWithAuth('/api/me');
+    if(r.ok){ const u = await r.json(); try{ localStorage.setItem('s2md_user', JSON.stringify(u)); }catch{} }
+  }catch{}
+}
+
+function getUser(){
+  try{ return JSON.parse(localStorage.getItem('s2md_user')||'null'); }catch{ return null }
+}
+
+function confetti(){
+  const c = document.createElement('div');
+  c.style.position = 'fixed';
+  c.style.left = '0';
+  c.style.top = '0';
+  c.style.pointerEvents = 'none';
+  c.style.zIndex = '1000';
+  c.style.width = '100%';
+  c.style.height = '100%';
+  document.body.appendChild(c);
+  const colors = ['#58A6FF','#3FB950','#F85149','#FFD33D','#B887FF'];
+  const count = 80;
+  for(let i=0;i<count;i++){
+    const p = document.createElement('div');
+    p.style.position = 'absolute';
+    p.style.width = '8px';
+    p.style.height = '14px';
+    p.style.background = colors[Math.floor(Math.random()*colors.length)];
+    p.style.left = (Math.random()*innerWidth) + 'px';
+    p.style.top = '-20px';
+    p.style.opacity = '1';
+    p.style.transform = 'translateY(0) rotate(0deg)';
+    p.style.borderRadius = '3px';
+    p.style.transition = 'transform 1.6s ease, opacity 1.6s ease';
+    c.appendChild(p);
+    const dx = (Math.random()-0.5)*160;
+    const dy = innerHeight + Math.random()*200;
+    const rot = Math.random()*720;
+    setTimeout(()=>{ p.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`; p.style.opacity = '0'; }, 20);
+  }
+  setTimeout(()=>{ c.remove(); }, 1800);
+}
+
+/* Регистрация */
+async function doRegister(){
+  const username = document.getElementById("regUsername").value.trim();
+  const password = document.getElementById("regPassword").value;
+  const full_name = document.getElementById("regFullname").value.trim();
+  if(!username) return showError("Введите логин");
+  if((password||"").length < 8) return showError("Пароль не менее 8 символов");
+  const payload = { username, password, full_name };
+
+  const r = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (r.status === 400){
+    let msg = "Ошибка регистрации";
+    try{ const e = await r.json(); msg = e?.error || msg; }catch{}
+    return showError(msg);
+  }
+
+  if (!r.ok) return showError("Сервер недоступен");
+  // успешная регистрация → сразу логин по тем же данным
+  const lr = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ username: payload.username, password: payload.password })
+  });
+  if (!lr.ok) return showError("Логин после регистрации не прошёл");
+  const tokens = await lr.json();
+  auth.save(tokens.access_token, tokens.refresh_token);
+  await fetchAndSaveUser();
+  hideModal("modalRegister");
+  updateHeaderAuth();
+  showSuccess("Регистрация успешна");
+  confetti();
+}
+
+/* Вход */
+async function doLogin(){
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  if(!username) return showError("Введите логин");
+  if(!password) return showError("Введите пароль");
+  const payload = { username, password };
+
+  const r = await fetch("/api/auth/login", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (r.status === 401) return showError("Неверный логин или пароль");
+  if (!r.ok) return showError("Ошибка сервера");
+  const data = await r.json();
+  auth.save(data.access_token, data.refresh_token);
+  await fetchAndSaveUser();
+
+  hideModal("modalLogin");
+  updateHeaderAuth();
+}
+
+/* Смена состояния хедера («гость ↔ залогинен») */
+function updateHeaderAuth(){
+  const box = document.getElementById("headerAuth");
+  const user = getUser(); 
+
+  if (!user){
+    box.innerHTML = `
+      <button id="btnLoginOpen" class="btn btn-primary">Войти</button>
+      <button id="btnRegisterOpen" class="btn btn-secondary">Регистрация</button>
+    `;
+    document.getElementById("btnLoginOpen").onclick = () => showModal("modalLogin");
+    document.getElementById("btnRegisterOpen").onclick = () => showModal("modalRegister");
+    return;
+  }
+
+  box.innerHTML = `
+    <span>${user.username || 'user'}</span>
+    <span class="badge badge-${user.plan || 'free'}">${user.plan || 'free'}</span>
+    <button id="btnLogout" class="btn btn-ghost" style="padding:6px 8px; opacity:.8">Выйти</button>
+  `;
+  const bl = document.getElementById('btnLogout');
+  if(bl){ bl.onclick = ()=>{ auth.clear(); const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; updateHeaderAuth(); showSuccess('Вы вышли'); }; }
+}
+
+// открыть секцию «мои транскрипты» 
+function showTranscripts(){
+  const sec = document.getElementById('transcriptsSec');
+  if(!sec) return;
+  sec.style.display = 'block';
+  const hero = document.querySelector('main.container.hero');
+  if(hero) hero.style.display = 'none';
+  loadTranscripts('');
+  const q = document.getElementById('transcriptsQ'); if(q){ q.focus(); /* ну чтоб сразу печатать */ }
+}
+
+// отрисовать карточки транскриптов (простые .card)
+function renderTranscripts(items){
+  const box = document.getElementById('transcriptsList');
+  if(!box) return;
+  box.innerHTML = '';
+  for(const it of (items||[])){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cursor = 'pointer';
+    const title = String(it.title||'Без названия');
+    const dt = it.created_at ? new Date(it.created_at) : null;
+    const dd = dt ? dt.toLocaleString('ru-RU') : '';
+    const mins = typeof it.duration_sec === 'number' ? Math.floor(it.duration_sec/60) : 0;
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <strong>${title}</strong>
+        <div class="row" style="gap:8px">
+          <span class="badge badge-ready">${(it.status||'ready')}</span>
+          <button class="btn btn-ghost" style="padding:8px 10px">Удалить</button>
+        </div>
+      </div>
+      <div class="muted" style="font-size:13px">${dd}</div>
+      <div class="muted" style="font-size:13px">длина: ${mins} мин</div>
+    `;
+    card.onclick = ()=> openTranscript(it.id, title);
+    const delBtn = card.querySelector('button.btn.btn-ghost');
+    if(delBtn){ delBtn.onclick = (e)=>{ e.stopPropagation(); deleteTranscript(it.id); }; }
+    box.appendChild(card);
+  }
+}
+
+//грузим мои транскрипты ( тип список)
+async function loadTranscripts(q=''){
+  try{
+    const res = await auth.fetchWithAuth('/api/transcripts?limit=50&offset=0');
+    if(!res.ok){ if(res.status===401) return showError('Нужно войти'); return showError('Не удалось загрузить'); }
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    const ql = String(q||'').toLowerCase();
+    const filtered = ql ? items.filter(it => String(it.title||'').toLowerCase().includes(ql)) : items;
+    renderTranscripts(filtered);
+  }catch{ showError('сетевой улетел'); }
+}
+
+// открыть одну запись → модалка с Markdown (красивооо)
+async function openTranscript(id, title){
+  try{
+    const r = await auth.fetchWithAuth(`/api/transcripts/${id}?format=markdown`);
+    if(!r.ok){ return showError('не удалось открыть'); }
+    const md = await r.text();
+    const t = document.getElementById('trTitle'); if(t) t.textContent = title || ('Transcript '+id);
+    const c = document.getElementById('trContent');
+    if(c){ c.innerHTML = (window.marked && window.marked.parse) ? window.marked.parse(md) : md; }
+    showModal('modalTranscript');
+  }catch{ showError('сетевой улетел'); }
+}
+
+// удалить запись (спросим подтверждени)
+async function deleteTranscript(id){
+  if(!id) return;
+  if(!confirm('Точно удалить?')) return;
+  try{
+    const r = await auth.fetchWithAuth(`/api/transcripts/${id}`, { method:'DELETE' });
+    if(!r.ok){ return showError('не удалилось'); }
+    showSuccess('Удалено');
+    const q = document.getElementById('transcriptsQ');
+    const val = q ? String(q.value||'').trim() : '';
+    await loadTranscripts(val);
+  }catch{ showError('сетевой улетел'); }
+}
+
+// поиск и «назад»
+document.addEventListener('DOMContentLoaded', async ()=>{
+  const q = document.getElementById('transcriptsQ');
+  if(q){ q.addEventListener('input', (e)=> loadTranscripts(String(e.target.value||'').trim())); }
+  const back = document.getElementById('btnBackHome');
+  if(back){ back.onclick = ()=>{ const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; } };
+  try{ await fetchAndSaveUser(); }catch{}
+  updateHeaderAuth(); //восстановим состояние
+});
+
+// p5.js trailing grid implementation will be loaded below
+</script>
+<!-- p5.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+<!-- Markdown render (marked) -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<!-- модалка просмотра транскрипта -->
+<div id="modalTranscript" class="modal hidden">
+  <div class="modal-box" style="width:640px; max-height:70vh; overflow:auto">
+    <h3 id="trTitle">Транскрипт</h3>
+    <div id="trContent" class="preview" style="display:block"></div>
+    <button class="btn btn-ghost" onclick="hideModal('modalTranscript')">Закрыть</button>
+  </div>
+</div>
+
+<script>
+const sketch = (p) => {
+  let particles = [];
+  const density = 150;
+
+  p.setup = () => {
+    const c = p.createCanvas(p.windowWidth, p.windowHeight);
+    c.parent('bg-canvas');
+    for(let i = 0; i < (p.width * p.height) / 12000; i++){
+      particles.push(new Particle(p));
+    }
+  };
+
+  p.windowResized = () => { p.resizeCanvas(p.windowWidth, p.windowHeight); };
+
+  p.draw = () => {
+    p.clear();
+    for(let i = 0; i < particles.length; i++){
+      const p1 = particles[i];
+      p1.update();
+      p1.draw();
+      const dMouse = p.dist(p.mouseX, p.mouseY, p1.pos.x, p1.pos.y);
+      if(dMouse < 250){
+        p1.pos.x += (p.mouseX - p1.pos.x) * 0.005;
+        p1.pos.y += (p.mouseY - p1.pos.y) * 0.005;
+      }
+      for(let j = i; j < particles.length; j++){
+        const p2 = particles[j];
+        const d = p.dist(p1.pos.x, p1.pos.y, p2.pos.x, p2.pos.y);
+        if(d < 120){
+          const alpha = p.map(d, 0, 120, 150, 0);
+          p.stroke(100, 200, 255, alpha * 0.3);
+          p.strokeWeight(1);
+          p.line(p1.pos.x, p1.pos.y, p2.pos.x, p2.pos.y);
+        }
+      }
+    }
+  };
+
+  class Particle {
+    constructor(p){
+      this.p = p;
+      this.pos = p.createVector(Math.random() * p.width, Math.random() * p.height);
+      this.vel = p.createVector((Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5);
+      this.size = Math.random() * 2;
+    }
+    update(){
+      this.pos.add(this.vel);
+      if(this.pos.x < 0 || this.pos.x > this.p.width) this.vel.x *= -1;
+      if(this.pos.y < 0 || this.pos.y > this.p.height) this.vel.y *= -1;
+    }
+    draw(){
+      this.p.noStroke();
+      this.p.fill(200, 230, 255, 150);
+      this.p.circle(this.pos.x, this.pos.y, this.size);
+    }
+  }
+};
+new p5(sketch);
+</script>
+<!-- модалка входа -->
+<div id="modalLogin" class="modal hidden">
+  <div class="modal-box">
+    <h3>Вход</h3>
+    <input id="loginUsername" type="text" placeholder="Логин">
+    <input id="loginPassword" type="password" placeholder="Пароль">
+    <button id="btnLoginSubmit" class="btn btn-primary">Войти</button>
+    <button class="btn btn-ghost" onclick="hideModal('modalLogin')">Закрыть</button>
+  </div>
+</div>
+
+<!-- модалка регистрации -->
+<div id="modalRegister" class="modal hidden">
+  <div class="modal-box">
+    <h3>Регистрация</h3>
+    <input id="regUsername" type="text" placeholder="Логин">
+    <input id="regFullname" type="text" placeholder="Имя (необязательно)">
+    <input id="regPassword" type="password" placeholder="Пароль">
+    <button id="btnRegisterSubmit" class="btn btn-primary">Зарегистрироваться</button>
+    <button class="btn btn-ghost" onclick="hideModal('modalRegister')">Закрыть</button>
+  </div>
+</div>
+
+</body>
+</html>

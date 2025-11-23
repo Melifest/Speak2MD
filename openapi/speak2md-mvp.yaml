@@ -1,0 +1,93 @@
+openapi: 3.0.3
+info:
+  title: Speak2MD — MVP API
+  version: "0.1.0"
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/upload:
+    post:
+      summary: Upload audio and create processing Job
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                language:
+                  type: string
+                diarization:
+                  type: boolean
+      responses:
+        '200':
+          description: Created Job
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+        '400':
+          description: Validation error
+  /api/status/{job_id}:
+    get:
+      summary: Get current job status
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Status & progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [processing, ready, error] }
+                  progress: { type: integer, minimum: 0, maximum: 100 }
+        '404':
+          description: Job not found
+  /api/status/{job_id}/sse:
+    get:
+      summary: Server-Sent Events for job status
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: EventSource stream
+  /api/ws/{job_id}:
+    get:
+      summary: WebSocket for realtime progress
+      responses:
+        '101':
+          description: Switching protocols
+  /api/result/{job_id}:
+    get:
+      summary: Download result in Markdown or JSON
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: format
+          schema: { type: string, enum: [markdown, json], default: markdown }
+      responses:
+        '200':
+          description: Returns text/markdown or application/json
+        '400':
+          description: Not ready
+        '404':
+          description: Not found

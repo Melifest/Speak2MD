@@ -1,0 +1,129 @@
+import os
+import logging
+import threading
+from fastapi import FastAPI, Request, HTTPException
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from prometheus_fastapi_instrumentator import Instrumentator
+from .services import storage
+from .settings import settings
+from .db import Base, engine
+
+from .routes.upload import router as upload_router
+from .routes.status import router as status_router
+from .routes.result import router as result_router
+from .routes.ws import router as ws_router
+from .routes.auth import router as auth_router
+from .routes.transcripts import router as transcripts_router
+from .routes.share import router as share_router
+from .routes.plan import router as plan_router
+
+LOG_LEVEL = settings.LOG_LEVEL.upper()
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("speak2md")
+
+app = FastAPI(title="Speak2MD API", version="0.1.0")
+
+# CORS (пока простая конфа для MVP)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Маршруты API
+app.include_router(upload_router, prefix="/api", tags=["upload"])
+app.include_router(status_router, prefix="/api", tags=["status"])
+app.include_router(result_router, prefix="/api", tags=["result"])
+app.include_router(ws_router, prefix="/api", tags=["ws"])
+app.include_router(auth_router, prefix="/api", tags=["auth"])
+app.include_router(transcripts_router, prefix="/api", tags=["Transcripts"])
+app.include_router(share_router, prefix="/api", tags=["share"])
+app.include_router(plan_router, prefix="/api", tags=["plan"])
+
+# метрики (добавляем middleware до старта приложения)
+Instrumentator().instrument(app).expose(app)
+
+# Статика (пока простой фронт)
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
+
+#голбальные  обработчики ошибок — единый формат {"error": "..."}
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    msg = exc.detail if isinstance(exc.detail, str) else "Error"
+    return JSONResponse(status_code=exc.status_code, content={"error": msg})
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    msg = exc.detail if isinstance(exc.detail, str) else "Error"
+    return JSONResponse(status_code=exc.status_code, content={"error": msg})
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=400, content={"error": "Bad Request"})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
+
+@app.on_event("startup")
+def on_startup():
+    # Инициализация бд, создаём таблицы, if нет + базовый лог
+    try:
+        Base.metadata.create_all(bind=engine)
+        with engine.connect() as conn:
+            try:
+                conn.exec_driver_sql("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS user_id VARCHAR")
+            except Exception:
+                pass
+        logger.info("DB initialized. Speak2MD started. DATA_DIR=%s", storage.DATA_DIR)
+    except Exception as e:
+        logger.exception("DB initialization failed: %s", e)
+        # продолжаем старт, но загрузка/обработка может упасть при использовании БД
+        logger.warning("Continuing without confirmed DB init; uploads may fail.")
+
+    # Фоновый прогрев модели ASR — не блокируем старт приложения и /health (заколебал залипать уже)
+    def _background_warmup():
+        try:
+            model_name = settings.WHISPER_MODEL
+            download_root = settings.WHISPER_CACHE_DIR or settings.DATA_DIR
+            from faster_whisper import WhisperModel
+            logger.info(
+                "ASR warm-up (background): initializing WhisperModel('%s'), download_root=%s",
+                model_name,
+                download_root,
+            )
+            WhisperModel(model_name, device="cpu", compute_type="int8", download_root=download_root)
+            try:
+                (storage.DATA_DIR/".whisper_ready").write_text(model_name, encoding="utf-8")
+            except Exception:
+                pass
+            logger.info("ASR warm-up completed for model '%s'", model_name)
+        except Exception as e:
+            logger.warning("ASR warm-up skipped/failed: %s", e)
+
+    try:
+        sentinel = storage.DATA_DIR/".whisper_ready"
+        if not sentinel.exists():
+            threading.Thread(target=_background_warmup, daemon=True).start()
+            logger.info("ASR warm-up scheduled in background")
+    except Exception as e:
+        logger.warning("ASR warm-up scheduling failed: %s", e)
+
+@app.get("/health", response_class=HTMLResponse)
+def health():
+    return "<pre>OK</pre>"
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    """Выдать фронт index.html на корневом маршруте."""
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    return HTMLResponse("<pre>Index not found</pre>", status_code=404)
