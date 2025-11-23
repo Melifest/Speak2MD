@@ -68,11 +68,12 @@ components:
           example: 42
     AuthRegisterRequest:
       type: object
-      required: [username, password]
+      required: [email, password]
       properties:
-        username:
+        email:
           type: string
-          example: alex
+          format: email
+          example: user@example.com
         password:
           type: string
           minLength: 8
@@ -82,11 +83,12 @@ components:
           example: Алексей Иванов
     AuthLoginRequest:
       type: object
-      required: [username, password]
+      required: [email, password]
       properties:
-        username:
+        email:
           type: string
-          example: alex
+          format: email
+          example: user@example.com
         password:
           type: string
           example: StrongPassw0rd!
@@ -118,17 +120,13 @@ components:
           example: "refresh_0a1b2c3d..."
     UserProfile:
       type: object
-      required: [id, username, plan]
+      required: [id, email, plan]
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        username:
-          type: string
-          example: alex
         email:
           type: string
           format: email
-          nullable: true
         full_name:
           type: string
         plan:
