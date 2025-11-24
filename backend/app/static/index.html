@@ -137,12 +137,14 @@
   .how{margin:72px 0; display:flex;flex-direction:column;align-items:center}
   .how h2{ text-align:center; }
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;justify-items:center;max-width:var(--container);width:100%;}
-  .card{background:#161B22;border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1}
-  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(88,166,255,.15)}
+  .card{background:rgba(22,27,34,.55);backdrop-filter:blur(12px) saturate(120%);-webkit-backdrop-filter:blur(12px) saturate(120%);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1; box-shadow:0 8px 24px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.08)}
+  .card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0));opacity:.6;pointer-events:none;mix-blend-mode:overlay}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 14px 36px rgba(88,166,255,.22)}
   /* Сетка и карточки планов */
   .plans-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; align-items:stretch }
-  .plan-card{ background: rgba(22,27,34,.85); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:16px; transition:.2s; position:relative }
-  .plan-card:hover{ border-color: var(--accent); box-shadow: 0 10px 30px -10px rgba(88,166,255,.18); transform: translateY(-2px) }
+  .plan-card{ background: rgba(22,27,34,.55); backdrop-filter: blur(12px) saturate(120%); -webkit-backdrop-filter: blur(12px) saturate(120%); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:16px; transition:.2s; position:relative; box-shadow:0 8px 24px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.08) }
+  .plan-card::before{ content:""; position:absolute; inset:0; border-radius:inherit; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0)); opacity:.6; pointer-events:none; mix-blend-mode:overlay }
+  .plan-card:hover{ border-color: var(--accent); box-shadow: 0 14px 36px rgba(88,166,255,.22); transform: translateY(-2px) }
   .plan-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px }
   .plan-name{ font-weight:600 }
   .plan-limit{ color:var(--muted); font-size:13px }
