@@ -35,7 +35,6 @@ Authorization: Bearer <access_token>
 **Request (multipart/form-data):**
 - `file` — бинарный файл (mp3/m4a/wav), **обязателен**
 - `language` — предпочитаемый язык (например, `ru`, `en`), опционально
-- `diarization` — включить определение говорящих, опционально
 
 **Response 200 (application/json):**
 ```json

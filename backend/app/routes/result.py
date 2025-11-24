@@ -65,13 +65,15 @@ async def get_result(
 
         media_type = "text/markdown; charset=utf-8" if format == "markdown" else "application/json"
 
+        safe_name = task.get("filename") or os.path.basename(str(result_path))
+        safe_name_ascii = "".join(ch if ord(ch) < 128 else "_" for ch in str(safe_name))
         return Response(
             content=content,
             media_type=media_type,
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "X-Job-ID": job_id,
-                "X-Filename": task.get("filename") or os.path.basename(str(result_path))
+                "X-Filename": safe_name_ascii,
             }
         )
 
@@ -134,12 +136,14 @@ async def get_result(
         )
 
     media_type = "text/markdown; charset=utf-8" if format == "markdown" else "application/json"
+    safe_name = (job.original_filename or os.path.basename(str(result_path)))
+    safe_name_ascii = "".join(ch if ord(ch) < 128 else "_" for ch in str(safe_name))
     return Response(
         content=content,
         media_type=media_type,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "X-Job-ID": job_id,
-            "X-Filename": (job.original_filename or os.path.basename(str(result_path)))
+            "X-Filename": safe_name_ascii,
         }
     )

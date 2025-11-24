@@ -58,8 +58,11 @@ class TranscriptItem(BaseModel):
     created_at: datetime
     duration_sec: Optional[int] = None
     status: str
+    tags: Optional[List[str]] = None
 
 class TranscriptListResponse(BaseModel):
     total: int
     items: List[TranscriptItem]
 
+class TagsUpdateRequest(BaseModel):
+    tags: List[str]

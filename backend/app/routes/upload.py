@@ -6,6 +6,12 @@ from ..schemas import UploadResponse, ErrorResponse
 from ..db import SessionLocal
 from ..models import Job, JobStatus
 from ..utils.security import get_current_user
+from ..utils.audio import wav_duration_seconds
+from ..services.audio_converter import convert_to_wav_16k_mono
+from ..routes.plan import PLANS
+from datetime import datetime
+from calendar import monthrange
+from pathlib import Path
 
 router = APIRouter()
 
@@ -75,7 +81,50 @@ async def upload_audio(file: UploadFile = File(...), authorization: str | None =
     #<ext> определяется из content-type, а при его отсутствии — из имени
     save_ext = content_extension or (file_extension if file_extension in allowed_extensions else '.wav')
     original_name = f"original{save_ext}"
-    storage.save_bytes(job_id, original_name, content)
+    # уже нормальная логика сопоставления плана и использования
+    original_path = storage.save_bytes(job_id, original_name, content)
+
+    user = None
+    if authorization:
+        try:
+            user = get_current_user(authorization)
+        except Exception:
+            user = None
+
+    if user:
+        try:
+            tmp_wav = storage.path_for(job_id, "tmp_duration.wav")
+            convert_to_wav_16k_mono(Path(original_path), Path(tmp_wav))
+            dur_sec = wav_duration_seconds(Path(tmp_wav)) or 0
+        except Exception:
+            dur_sec = 0
+        try:
+            Path(tmp_wav).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        plan_map = {p["id"]: p for p in PLANS}
+        limit_min = int((plan_map.get(user.plan) or {"minutes_per_month": 0}).get("minutes_per_month", 0))
+
+        now = datetime.utcnow()
+        last_day = monthrange(now.year, now.month)[1]
+        start = datetime(now.year, now.month, 1)
+        end = datetime(now.year, now.month, last_day, 23, 59, 59)
+        with SessionLocal() as db:
+            q = db.query(Job).filter(Job.user_id == user.id)
+            jobs = [
+                j for j in q.all()
+                if j.created_at >= start and j.created_at <= end
+                and (j.status.value if hasattr(j.status, "value") else str(j.status)) == "ready"
+            ]
+            used_minutes = sum(int(j.duration_seconds or 0) for j in jobs) // 60
+        new_minutes = int(dur_sec) // 60
+        if limit_min and (used_minutes + new_minutes) > limit_min:
+            try:
+                Path(original_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Превышен лимит тарифного плана")
 
     # 5.2 создание записи задачи в БД
     try:
@@ -87,12 +136,8 @@ async def upload_audio(file: UploadFile = File(...), authorization: str | None =
                 original_filename=file.filename,
                 content_type=file.content_type,
             )
-            if authorization:
-                try:
-                    user = get_current_user(authorization)
-                    job.user_id = user.id
-                except Exception:
-                    pass
+            if user:
+                job.user_id = user.id
             db.add(job)
             db.commit()
     except Exception as e:

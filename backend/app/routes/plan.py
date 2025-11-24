@@ -12,9 +12,9 @@ router = APIRouter()
 PLANS = [
     {"id": "free", "name": "Free", "minutes_per_month": 60},
     {"id": "pro", "name": "Pro", "minutes_per_month": 500},
-    {"id": "team", "name": "Team", "minutes_per_month": 2000},
+    {"id": "premium", "name": "Premium", "minutes_per_month": 2000},
 ]
-ALLOWED = {"free", "pro", "team"}
+ALLOWED = {"free", "pro", "premium"}
 
 @router.get("/plans")
 def get_plans():

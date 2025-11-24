@@ -6,7 +6,7 @@ from ..db import SessionLocal
 from ..models import Job, JobStatus
 from ..utils.security import get_current_user
 from ..services.storage import path_for, job_dir
-from ..schemas import TranscriptItem, TranscriptListResponse
+from ..schemas import TranscriptItem, TranscriptListResponse, TagsUpdateRequest
 
 router = APIRouter()
 
@@ -21,6 +21,7 @@ def list_transcripts(
     authorization: str = Header(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    tag: Optional[str] = Query(None),
 ):
     # тянем текущего юзера из Bearer
     user = get_current_user(authorization)
@@ -32,8 +33,12 @@ def list_transcripts(
             .order_by(Job.created_at.desc())
         )
         # считаем общий размер - для MVP норм, потом можно сделать count отдельно
-        total = q.count()
-        jobs = q.offset(offset).limit(limit).all()
+        jobs_all = q.all()
+        if tag:
+            t = str(tag).strip().lower()
+            jobs_all = [j for j in jobs_all if any(str(x or "").lower() == t for x in (j.tags or []))]
+        total = len(jobs_all)
+        jobs = jobs_all[offset : offset + limit]
 
         items = []
         for j in jobs:
@@ -46,6 +51,7 @@ def list_transcripts(
                     created_at=j.created_at,
                     duration_sec=j.duration_seconds,
                     status=j.status.value if hasattr(j.status, "value") else str(j.status),
+                    tags=j.tags or [],
                 )
             )
 
@@ -121,3 +127,17 @@ def delete_transcript(job_id: str, authorization: str = Header(None)):
         pass
 
     return {"deleted": True}
+
+
+@router.post("/transcripts/{job_id}/tags")
+def update_transcript_tags(job_id: str, payload: TagsUpdateRequest, authorization: str = Header(None)):
+    user = get_current_user(authorization)
+    with SessionLocal() as db:
+        job = db.query(Job).filter(Job.id == job_id, Job.user_id == user.id).first()
+        if not job:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcript not found")
+        tags = [str(x).strip() for x in (payload.tags or []) if str(x).strip()]
+        job.tags = tags
+        db.add(job)
+        db.commit()
+        return {"id": job.id, "tags": job.tags}

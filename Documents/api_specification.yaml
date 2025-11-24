@@ -264,9 +264,6 @@ paths:
                 language:
                   type: string
                   description: Предпочитаемый язык распознавания (например, "ru" или "en")
-                diarization:
-                  type: boolean
-                  description: Включить определение говорящих (если поддерживается)
       responses:
         "200":
           description: Задача создана

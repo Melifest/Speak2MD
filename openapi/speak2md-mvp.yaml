@@ -20,8 +20,6 @@ paths:
                   format: binary
                 language:
                   type: string
-                diarization:
-                  type: boolean
       responses:
         '200':
           description: Created Job

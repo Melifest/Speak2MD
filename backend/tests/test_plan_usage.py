@@ -39,7 +39,7 @@ def test_plans_endpoint():
     data = r.json()
     assert isinstance(data, list) and len(data) == 3
     ids = {p["id"] for p in data}
-    assert ids == {"free", "pro", "team"}
+    assert ids == {"free", "pro", "premium"}
 
 def test_change_plan_and_usage():
     token = register_and_login("planuser2")
