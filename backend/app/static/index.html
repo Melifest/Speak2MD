@@ -113,6 +113,7 @@
   .badge-free{ background:#30363D; color:#8B949E }
   .badge-pro{ background:#58A6FF; color:#0D1117 }
   .badge-team{ background:#A5D6FF; color:#0D1117 }
+  .badge-premium{ background:#ecab06eb; color:#0D1117 }
 
   /* Прогресс (липкий) */
   .sticky{ position:sticky; top:72px; z-index:12; margin-top:16px }
@@ -140,6 +141,13 @@
   .card{background:rgba(22,27,34,.55);backdrop-filter:blur(12px) saturate(120%);-webkit-backdrop-filter:blur(12px) saturate(120%);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1; box-shadow:0 8px 24px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.08)}
   .card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0));opacity:.6;pointer-events:none;mix-blend-mode:overlay}
   .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 14px 36px rgba(88,166,255,.22)}
+  #transcriptsList.grid{ grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); justify-items: stretch }
+  #transcriptsList .card{ width: 100%; box-sizing: border-box; z-index: 0 }
+  #transcriptsList .card:hover{ transform: none }
+  .title-ellipsis{ display:inline-block; max-width: calc(100% - 200px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  #transcriptsList.grid{ grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card{ overflow: hidden; }
+  .title-ellipsis{ display:inline-block; max-width: calc(100% - 180px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Сетка и карточки планов */
   .plans-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; align-items:stretch }
   .plan-card{ background: rgba(22,27,34,.55); backdrop-filter: blur(12px) saturate(120%); -webkit-backdrop-filter: blur(12px) saturate(120%); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:16px; transition:.2s; position:relative; box-shadow:0 8px 24px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.08) }
@@ -320,7 +328,10 @@
   <section id="transcriptsSec" class="container" style="display:none; position:relative; z-index:12">
     <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:14px">
       <h2 style="margin:0">Мои транскрипты</h2>
-      <input id="transcriptsQ" placeholder="Поиск" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:240px" />
+      <div class="row" style="gap:8px">
+        <input id="transcriptsQ" placeholder="Поиск" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:240px" />
+        <input id="transcriptsTag" placeholder="Тег" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:160px" />
+      </div>
     </div>
     <div id="transcriptsList" class="grid"></div>
     <div class="row" style="margin-top:16px">
@@ -339,6 +350,51 @@
     <div class="row" style="margin-top:16px">
       <button id="btnBackHome2" class="btn btn-ghost">Назад</button>
     </div>
+  </section>
+
+  <section id="adminSec" class="container" style="display:none; position:relative; z-index:12">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:14px">
+      <h2 style="margin:0">Парель админа</h2>
+      <div class="row" style="gap:8px">
+        <button id="btnBackHomeAdmin" class="btn btn-ghost">Назад</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="row" style="gap:8px; flex-wrap:wrap">
+        <input id="adminUserQ" placeholder="Поиск" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:220px" />
+        <select id="adminUserPlan" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+          <option value="">plan</option>
+          <option value="free">free</option>
+          <option value="pro">pro</option>
+          <option value="premium">premium</option>
+        </select>
+        <select id="adminUserRole" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+          <option value="">role</option>
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+        <label class="row" style="gap:6px"><input id="adminUserActive" type="checkbox" /> только активные</label>
+        <button id="btnAdminLoadUsers" class="btn btn-primary">Загрузить пользователей</button>
+      </div>
+    </div>
+    <div id="adminUsersList" class="grid" style="grid-template-columns:1fr"></div>
+    <div class="card" style="margin:14px 0">
+      <div class="row" style="gap:8px; flex-wrap:wrap">
+        <select id="adminJobStatus" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+          <option value="">status</option>
+          <option value="queued">queued</option>
+          <option value="processing">processing</option>
+          <option value="ready">ready</option>
+          <option value="error">error</option>
+        </select>
+        <input id="adminJobUser" placeholder="user_id" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:220px" />
+        <input id="adminJobSince" placeholder="since ISO" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:180px" />
+        <input id="adminJobUntil" placeholder="until ISO" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:180px" />
+        <button id="btnAdminLoadJobs" class="btn btn-primary">Загрузить задачи</button>
+      </div>
+    </div>
+    <div id="adminJobsList" class="grid" style="grid-template-columns:1fr"></div>
+    <div id="adminStats" class="card" style="margin-top:14px"></div>
   </section>
 
   <footer class="container" style="text-align:center; padding:40px; color:rgba(255,255,255,0.2); font-size:13px">Designed for Speak2MD</footer>
@@ -536,6 +592,7 @@ function showModal(id){
   if(id === "modalRegister"){ const b = document.getElementById("btnRegisterSubmit"); if(b) b.onclick = doRegister; }
   if(id === "modalLogin"){ const b = document.getElementById("btnLoginSubmit"); if(b) b.onclick = doLogin; }
   if(id === "modalShare"){ const b = document.getElementById("btnShareCopy"); if(b) b.onclick = async ()=>{ const val = (document.getElementById('shareUrlInput')||{}).value || ''; try{ await navigator.clipboard.writeText(val); showSuccess('Ссылка скопирована'); } catch{ try{ const i = document.getElementById('shareUrlInput'); if(i){ i.select(); document.execCommand('copy'); showSuccess('Ссылка скопирована'); } } catch{ showError('не удалось скопировать'); } } }; }
+  if(id === "modalTags"){ const b = document.getElementById("btnTagsSave"); if(b) b.onclick = saveTags; }
 }
 
 function hideModal(id){
@@ -731,10 +788,13 @@ function updateHeaderAuth(){
   box.innerHTML = `
     <span>${user.username || 'user'}</span>
     <span class="badge badge-${user.plan || 'free'}">${user.plan || 'free'}</span>
+    ${getRoleFromAccess()==='admin' ? '<button id="btnOpenAdmin" class="btn btn-ghost">Админка</button>' : ''}
     <button id="btnLogout" class="btn btn-ghost" style="padding:6px 8px; opacity:.8">Выйти</button>
   `;
   const bl = document.getElementById('btnLogout');
   if(bl){ bl.onclick = ()=>{ auth.clear(); const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; updateHeaderAuth(); showSuccess('Вы вышли'); }; }
+  const ba = document.getElementById('btnOpenAdmin');
+  if(ba){ ba.onclick = ()=> showAdmin(); }
 }
 
 // открыть секцию «мои транскрипты» 
@@ -775,26 +835,56 @@ function renderTranscripts(items){
     const mins = typeof it.duration_sec === 'number' ? Math.floor(it.duration_sec/60) : 0;
     card.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center">
-        <strong>${title}</strong>
+        <strong class="title-ellipsis" title="${title}">${title}</strong>
         <div class="row" style="gap:8px">
           <span class="badge badge-ready">${(it.status||'ready')}</span>
           <button class="btn btn-ghost" style="padding:8px 10px">Удалить</button>
+          <button class="btn btn-ghost" data-id="${it.id}" style="padding:8px 10px">Теги</button>
         </div>
       </div>
       <div class="muted" style="font-size:13px">${dd}</div>
       <div class="muted" style="font-size:13px">длина: ${mins} мин</div>
+      <div class="row" style="gap:6px; justify-content:flex-start; margin-top:8px">
+        ${(Array.isArray(it.tags)?it.tags:[]).map(t=>`<span class='badge' style='background:rgba(255,255,255,.06)'>${t}</span>`).join('')}
+      </div>
     `;
     card.onclick = ()=> openTranscript(it.id, title);
     const delBtn = card.querySelector('button.btn.btn-ghost');
     if(delBtn){ delBtn.onclick = (e)=>{ e.stopPropagation(); deleteTranscript(it.id); }; }
+    const tagBtn = card.querySelector('button.btn.btn-ghost[data-id]');
+    if(tagBtn){ tagBtn.onclick = (e)=>{ e.stopPropagation(); openTagsModal(it.id, Array.isArray(it.tags)?it.tags:[]); }; }
     box.appendChild(card);
   }
+}
+
+function openTagsModal(id, tags){
+  const input = document.getElementById('tagsInput'); if(input){ input.value = (Array.isArray(tags)?tags:[]).join(', '); }
+  const hid = document.getElementById('tagsJobId'); if(hid){ hid.value = id; }
+  showModal('modalTags');
+}
+async function saveTags(){
+  const hid = document.getElementById('tagsJobId'); const id = hid ? String(hid.value||'').trim() : '';
+  const input = document.getElementById('tagsInput'); const raw = input ? String(input.value||'') : '';
+  const list = raw.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!id) return;
+  try{
+    const r = await auth.fetchWithAuth(`/api/transcripts/${id}/tags`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ tags: list }) });
+    if(!r.ok){ return showError('не удалось сохранить теги'); }
+    hideModal('modalTags');
+    const q = document.getElementById('transcriptsQ'); const val = q ? String(q.value||'').trim() : '';
+    await loadTranscripts(val);
+    showSuccess('Теги обновлены');
+  }catch{ showError('сетевой улетел'); }
 }
 
 //грузим мои транскрипты ( тип список)
 async function loadTranscripts(q=''){
   try{
-    const res = await auth.fetchWithAuth('/api/transcripts?limit=50&offset=0');
+    const tagInput = document.getElementById('transcriptsTag');
+    const tag = tagInput ? String(tagInput.value||'').trim() : '';
+    const qs = new URLSearchParams({ limit: '50', offset: '0' });
+    if(tag) qs.set('tag', tag);
+    const res = await auth.fetchWithAuth('/api/transcripts?'+qs.toString());
     if(!res.ok){ if(res.status===401) return showError('Нужно войти'); return showError('Не удалось загрузить'); }
     const data = await res.json();
     const items = Array.isArray(data.items) ? data.items : [];
@@ -841,7 +931,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   if(back2){ back2.onclick = ()=>{ const sec=document.getElementById('planSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; } };
   try{ await fetchAndSaveUser(); }catch{}
   updateHeaderAuth(); //восстановим состояние
-  
+
+  const tagInp = document.getElementById('transcriptsTag');
+  if(tagInp){ tagInp.addEventListener('input', ()=>{ const q = document.getElementById('transcriptsQ'); const val = q ? String(q.value||'').trim() : ''; loadTranscripts(val); }); }
 });
 
 //План и использование
@@ -926,6 +1018,176 @@ async function changePlan(planId){
   }catch{ showError('сетевой улетел'); }
 }
 
+//маленькая утилита: base64url - обычный base64 и декодировать
+function base64urlDecode(s){
+  s = String(s||'').replace(/-/g,'+').replace(/_/g,'/');
+  const pad = s.length % 4 === 2 ? '==' : (s.length % 4 === 3 ? '=' : '');
+  try{ return atob(s + pad); }catch{ return '' }
+}
+// достаём роль из payload access JWT; подпись не проверяем
+function getRoleFromAccess(){
+  const t = localStorage.getItem('s2md_access')||'';
+  if(!t) return '';
+  const p = t.split('.')[1]||'';
+  if(!p) return '';
+  try{ const obj = JSON.parse(base64urlDecode(p)||'{}'); return String(obj.role||''); }catch{ return '' }
+}
+//ткрыть секцию админки и загрузить данные
+function showAdmin(){
+  const sec = document.getElementById('adminSec'); if(!sec) return;
+  sec.style.display='block';
+  const hero = document.querySelector('main.container.hero'); if(hero) hero.style.display='none';
+  const tsec = document.getElementById('transcriptsSec'); if(tsec) tsec.style.display='none';
+  const psec = document.getElementById('planSec'); if(psec) psec.style.display='none';
+  loadAdminUsers();
+  loadAdminJobs();
+  loadAdminStats();
+}
+{ const b = document.getElementById('btnBackHomeAdmin'); if(b){ b.onclick = ()=>{ const sec=document.getElementById('adminSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; }; } }
+// грузим пользователей с фильтрами, рендерим карточки с действиями
+async function loadAdminUsers(){
+  const q = document.getElementById('adminUserQ');
+  const plan = document.getElementById('adminUserPlan');
+  const role = document.getElementById('adminUserRole');
+  const active = document.getElementById('adminUserActive');
+  const params = new URLSearchParams();
+  if(q && q.value) params.set('q', q.value);
+  if(plan && plan.value) params.set('plan', plan.value);
+  if(role && role.value) params.set('role', role.value);
+  if(active && active.checked) params.set('active', 'true');
+  const r = await auth.fetchWithAuth('/api/admin/users?'+params.toString());
+  if(!r.ok){ return showError('не удалось загрузить пользователей'); }
+  const items = await r.json();
+  const box = document.getElementById('adminUsersList'); if(!box) return;
+  box.innerHTML = '';
+  const table = document.createElement('div');
+  for(const u of items){
+    const row = document.createElement('div');
+    row.className = 'card';
+    const actLabel = u.is_active ? 'Деактивировать' : 'Активировать';
+    const nextActive = u.is_active ? 'deactivate' : 'activate';
+    row.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div>
+          <strong>${u.username}</strong>
+          <div class="muted" style="font-size:13px">${u.email||''}</div>
+          <div class="muted" style="font-size:13px">${u.id}</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <select data-uid="${u.id}" class="admin-plan" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+            <option value="free" ${u.plan==='free'?'selected':''}>free</option>
+            <option value="pro" ${u.plan==='pro'?'selected':''}>pro</option>
+            <option value="premium" ${u.plan==='premium'?'selected':''}>premium</option>
+          </select>
+          <select data-uid="${u.id}" class="admin-role" style="background:#0D1117;color:#C9D1D9;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+            <option value="user" ${u.role==='user'?'selected':''}>user</option>
+            <option value="admin" ${u.role==='admin'?'selected':''}>admin</option>
+          </select>
+          <button data-uid="${u.id}" class="btn btn-primary admin-save">Сохранить</button>
+          <button data-uid="${u.id}" data-act="${nextActive}" class="btn btn-ghost admin-active">${actLabel}</button>
+          <button data-uid="${u.id}" class="btn btn-ghost admin-revoke">Revoke</button>
+        </div>
+      </div>`;
+    table.appendChild(row);
+  }
+  box.appendChild(table);
+  const saveBtns = box.querySelectorAll('.admin-save');
+  saveBtns.forEach(btn=>{
+    btn.onclick = async ()=>{
+      const uid = btn.getAttribute('data-uid');
+      const planSel = box.querySelector(`select.admin-plan[data-uid="${uid}"]`);
+      const roleSel = box.querySelector(`select.admin-role[data-uid="${uid}"]`);
+      const payload = { plan: planSel ? planSel.value : undefined, role: roleSel ? roleSel.value : undefined };
+      const r = await auth.fetchWithAuth(`/api/admin/users/${uid}`, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+      if(!r.ok){ return showError('не удалось обновить'); }
+      showSuccess('Обновлено');
+      await loadAdminUsers();
+    };
+  });
+  const actBtns = box.querySelectorAll('.admin-active');
+  actBtns.forEach(btn=>{
+    btn.onclick = async ()=>{
+      const uid = btn.getAttribute('data-uid');
+      const act = btn.getAttribute('data-act');
+      const r = await auth.fetchWithAuth(`/api/admin/users/${uid}/${act}`, { method:'POST' });
+      if(!r.ok){ return showError('не удалось изменить активность'); }
+      await loadAdminUsers();
+    };
+  });
+  const rvBtns = box.querySelectorAll('.admin-revoke');
+  rvBtns.forEach(btn=>{
+    btn.onclick = async ()=>{
+      const uid = btn.getAttribute('data-uid');
+      const r = await auth.fetchWithAuth(`/api/admin/users/${uid}/tokens/revoke`, { method:'POST' });
+      if(!r.ok){ return showError('не удалось revoke'); }
+      showSuccess('Сессии сброшены');
+    };
+  });
+}
+//грузим задачи с фильтрами - рендерим простые карточки, позволяем удалять
+async function loadAdminJobs(){
+  const s = document.getElementById('adminJobStatus');
+  const u = document.getElementById('adminJobUser');
+  const since = document.getElementById('adminJobSince');
+  const until = document.getElementById('adminJobUntil');
+  const params = new URLSearchParams();
+  if(s && s.value) params.set('status_q', s.value);
+  if(u && u.value) params.set('user_id', u.value);
+  if(since && since.value) params.set('since', since.value);
+  if(until && until.value) params.set('until', until.value);
+  const r = await auth.fetchWithAuth('/api/admin/jobs?'+params.toString());
+  if(!r.ok){ return showError('не удалось загрузить задачи'); }
+  const items = await r.json();
+  const box = document.getElementById('adminJobsList'); if(!box) return;
+  box.innerHTML = '';
+  for(const j of items){
+    const card = document.createElement('div');
+    card.className = 'card';
+    const mins = typeof j.duration_seconds === 'number' ? Math.floor(j.duration_seconds/60) : 0;
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div>
+          <strong>${j.id}</strong>
+          <div class="muted" style="font-size:13px">user: ${j.user_id||''}</div>
+          <div class="muted" style="font-size:13px">${j.status}</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <span class="badge" style="background:rgba(255,255,255,.06)">минуты: ${mins}</span>
+          <button data-jid="${j.id}" class="btn btn-ghost admin-job-del">Удалить</button>
+        </div>
+      </div>`;
+    box.appendChild(card);
+  }
+  const delBtns = box.querySelectorAll('.admin-job-del');
+  delBtns.forEach(btn=>{
+    btn.onclick = async ()=>{
+      const jid = btn.getAttribute('data-jid');
+      const r = await auth.fetchWithAuth(`/api/admin/jobs/${jid}`, { method:'DELETE' });
+      if(!r.ok){ return showError('не удалось удалить'); }
+      await loadAdminJobs();
+    };
+  });
+}
+//простая сводка по системе
+async function loadAdminStats(){
+  const r = await auth.fetchWithAuth('/api/admin/stats');
+  if(!r.ok) return;
+  const s = await r.json();
+  const box = document.getElementById('adminStats'); if(!box) return;
+  box.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <strong>Сводка</strong>
+    </div>
+    <div class="row" style="justify-content:flex-start; gap:12px; margin-top:8px">
+      <span class="badge" style="background:rgba(255,255,255,.06)">users: ${s.users_total||0}</span>
+      <span class="badge" style="background:rgba(255,255,255,.06)">minutes: ${s.minutes_total||0}</span>
+      <span class="badge" style="background:rgba(255,255,255,.06)">jobs: ${s.jobs_total||0}</span>
+    </div>
+  `;
+}
+{ const b = document.getElementById('btnAdminLoadUsers'); if(b){ b.onclick = ()=> loadAdminUsers(); } }
+{ const b = document.getElementById('btnAdminLoadJobs'); if(b){ b.onclick = ()=> loadAdminJobs(); } }
+
 
 </script>
 <!-- p5.js CDN -->
@@ -941,6 +1203,19 @@ async function changePlan(planId){
     <div id="trContent" class="preview" style="display:block"></div>
     <button class="btn btn-ghost" onclick="hideModal('modalTranscript')">Закрыть</button>
   </div>
+</div>
+
+<!-- модалка тегов -->
+<div id="modalTags" class="modal hidden">
+  <div class="modal-box">
+    <h3>Теги</h3>
+    <input id="tagsInput" type="text" placeholder="tag1, tag2">
+    <div class="row" style="justify-content:flex-end">
+      <button id="btnTagsSave" class="btn btn-primary">Сохранить</button>
+      <button class="btn btn-ghost" onclick="hideModal('modalTags')">Закрыть</button>
+    </div>
+  </div>
+  <input id="tagsJobId" type="hidden">
 </div>
 
 <script>

@@ -91,3 +91,10 @@ def require_roles(roles: List[str]):
         return user
 
     return _dep
+
+def get_current_admin(authorization: Optional[str] = Header(None)):
+    # зависимость: доступ только для роли admin (проверяем на базе текущего пользователя)
+    user = get_current_user(authorization)
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return user

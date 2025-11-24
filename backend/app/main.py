@@ -20,6 +20,7 @@ from .routes.auth import router as auth_router
 from .routes.transcripts import router as transcripts_router
 from .routes.share import router as share_router
 from .routes.plan import router as plan_router
+from .routes.admin import router as admin_router
 
 LOG_LEVEL = settings.LOG_LEVEL.upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -45,6 +46,7 @@ app.include_router(auth_router, prefix="/api", tags=["auth"])
 app.include_router(transcripts_router, prefix="/api", tags=["Transcripts"])
 app.include_router(share_router, prefix="/api", tags=["share"])
 app.include_router(plan_router, prefix="/api", tags=["plan"])
+app.include_router(admin_router, prefix="/api", tags=["admin"])
 
 # метрики (добавляем middleware до старта приложения)
 Instrumentator().instrument(app).expose(app)
@@ -80,6 +82,10 @@ def on_startup():
         with engine.connect() as conn:
             try:
                 conn.exec_driver_sql("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS user_id VARCHAR")
+            except Exception:
+                pass
+            try:
+                conn.exec_driver_sql("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS tags JSON")
             except Exception:
                 pass
         logger.info("DB initialized. Speak2MD started. DATA_DIR=%s", storage.DATA_DIR)

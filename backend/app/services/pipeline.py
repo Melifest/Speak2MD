@@ -254,6 +254,15 @@ def run_job(db, job: Job) -> None:
         convert_to_wav_16k_mono(original, wav_path, timeout_sec=ffmpeg_timeout)
         update_task_progress(job.id, 20, "processing", "Audio converted")
 
+        try:
+            from ..utils.audio import wav_duration_seconds as _dur
+            d = _dur(wav_path) or 0
+            job.duration_seconds = int(d)
+            db.add(job)
+            db.commit()
+        except Exception:
+            pass
+
         use_mock = os.getenv("MOCK_PIPELINE", "false").lower() in {"1", "true", "yes"}
         if use_mock:
             md_path, json_path = _run_mock_pipeline(job.id, wav_path)

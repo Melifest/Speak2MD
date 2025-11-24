@@ -34,6 +34,7 @@ class Job(Base):
     original_filename = Column(String, nullable=True)
     content_type = Column(String, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
+    tags = Column(JSON, nullable=True, default=list)
     result_md_path = Column(String, nullable=True)
     result_json_path = Column(String, nullable=True)
     error_message = Column(Text, nullable=True)
