@@ -110,6 +110,9 @@
   .btn-ghost:hover, .btn-ghost:focus{ background:rgba(88,166,255,.06); border-color:var(--accent); color:#FFFFFF; transform:translateY(-2px); box-shadow:0 8px 20px rgba(88,166,255,.12) }
   .badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px}
   .badge-ready{background:var(--success);color:#0D1117}
+  .badge-free{ background:#30363D; color:#8B949E }
+  .badge-pro{ background:#58A6FF; color:#0D1117 }
+  .badge-team{ background:#A5D6FF; color:#0D1117 }
 
   /* Прогресс (липкий) */
   .sticky{ position:sticky; top:72px; z-index:12; margin-top:16px }
@@ -134,8 +137,18 @@
   .how{margin:72px 0; display:flex;flex-direction:column;align-items:center}
   .how h2{ text-align:center; }
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;justify-items:center;max-width:var(--container);width:100%;}
-  .card{background:#161B22;border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1}
-  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(88,166,255,.15)}
+  .card{background:rgba(22,27,34,.55);backdrop-filter:blur(12px) saturate(120%);-webkit-backdrop-filter:blur(12px) saturate(120%);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:18px;transition:border-color .2s, transform .2s, box-shadow .2s; position:relative; z-index:1; box-shadow:0 8px 24px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.08)}
+  .card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0));opacity:.6;pointer-events:none;mix-blend-mode:overlay}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 14px 36px rgba(88,166,255,.22)}
+  /* Сетка и карточки планов */
+  .plans-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; align-items:stretch }
+  .plan-card{ background: rgba(22,27,34,.55); backdrop-filter: blur(12px) saturate(120%); -webkit-backdrop-filter: blur(12px) saturate(120%); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:16px; transition:.2s; position:relative; box-shadow:0 8px 24px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.08) }
+  .plan-card::before{ content:""; position:absolute; inset:0; border-radius:inherit; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0)); opacity:.6; pointer-events:none; mix-blend-mode:overlay }
+  .plan-card:hover{ border-color: var(--accent); box-shadow: 0 14px 36px rgba(88,166,255,.22); transform: translateY(-2px) }
+  .plan-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px }
+  .plan-name{ font-weight:600 }
+  .plan-limit{ color:var(--muted); font-size:13px }
+  .plan-actions{ margin-top:12px; display:flex; justify-content:flex-start }
 
   /* Анимации */
   @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -229,6 +242,7 @@
     <div class="container header-bar">
       <a href="#" class="logo"><div class="logo-icon"></div>Speak2MD</a>
       <button id="btnOpenTranscripts" class="btn btn-ghost">Мои транскрипты</button>
+      <button id="btnOpenPlan" class="btn btn-ghost">Мой план</button>
 
       <div id="headerAuth">
          <!-- Если НЕ залогинен → кнопки -->
@@ -311,6 +325,19 @@
     <div id="transcriptsList" class="grid"></div>
     <div class="row" style="margin-top:16px">
       <button id="btnBackHome" class="btn btn-ghost">Назад</button>
+    </div>
+  </section>
+
+  <!-- Мой план (отдельная секция)-->
+  <section id="planSec" class="container" style="display:none; position:relative; z-index:12">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:14px">
+      <h2 style="margin:0">Мой план</h2>
+      <div id="planCurrent" class="row" style="gap:8px"></div>
+    </div>
+    <div id="planUsage" class="card" style="margin-bottom:14px"></div>
+    <div id="plansList" class="plans-grid"></div>
+    <div class="row" style="margin-top:16px">
+      <button id="btnBackHome2" class="btn btn-ghost">Назад</button>
     </div>
   </section>
 
@@ -518,6 +545,7 @@ function hideModal(id){
 document.getElementById("btnLoginOpen").onclick = () => showModal("modalLogin");
 document.getElementById("btnRegisterOpen").onclick = () => showModal("modalRegister");
 { const b = document.getElementById("btnOpenTranscripts"); if(b) b.onclick = () => showTranscripts(); }
+{ const b = document.getElementById("btnOpenPlan"); if(b) b.onclick = () => showPlan(); }
 
 /* Ошибка */
 function showError(msg){
@@ -716,8 +744,20 @@ function showTranscripts(){
   sec.style.display = 'block';
   const hero = document.querySelector('main.container.hero');
   if(hero) hero.style.display = 'none';
+  const plan = document.getElementById('planSec');
+  if(plan) plan.style.display = 'none';
   loadTranscripts('');
   const q = document.getElementById('transcriptsQ'); if(q){ q.focus(); /* ну чтоб сразу печатать */ }
+}
+
+//открыть секцию плпана
+function showPlan(){
+  const sec = document.getElementById('planSec');
+  if(!sec) return;
+  sec.style.display = 'block';
+  const hero = document.querySelector('main.container.hero'); if(hero) hero.style.display = 'none';
+  const tsec = document.getElementById('transcriptsSec'); if(tsec) tsec.style.display='none';
+  loadPlanData();
 }
 
 // отрисовать карточки транскриптов (простые .card)
@@ -797,12 +837,96 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   if(q){ q.addEventListener('input', (e)=> loadTranscripts(String(e.target.value||'').trim())); }
   const back = document.getElementById('btnBackHome');
   if(back){ back.onclick = ()=>{ const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; } };
+  const back2 = document.getElementById('btnBackHome2');
+  if(back2){ back2.onclick = ()=>{ const sec=document.getElementById('planSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; } };
   try{ await fetchAndSaveUser(); }catch{}
   updateHeaderAuth(); //восстановим состояние
   
 });
 
-// p5.js trailing grid implementation will be loaded below
+//План и использование
+async function loadPlanData(){
+  try{
+    const period = new Date().toISOString().slice(0,7);
+    const [meRes, plansRes, usageRes] = await Promise.all([
+      auth.fetchWithAuth('/api/me'),
+      auth.fetchWithAuth('/api/plans'),
+      auth.fetchWithAuth(`/api/usage?period=${period}`)
+    ]);
+    if(!meRes.ok){ if(meRes.status===401) return showError('Нужно войти'); return showError('Не удалось получить профиль'); }
+    if(!plansRes.ok){ return showError('Не удалось загрузить планы'); }
+    if(!usageRes.ok){ return showError('Не удалось загрузить usage'); }
+    const me = await meRes.json();
+    const plans = await plansRes.json();
+    const usage = await usageRes.json();
+    try{ localStorage.setItem('s2md_user', JSON.stringify(me)); }catch{}
+    renderPlan({ me, plans, usage });
+  }catch{ showError('сетевой улетел'); }
+}
+
+function renderPlan(state){
+  const { me, plans, usage } = state || {};
+  const cur = document.getElementById('planCurrent');
+  const usageBox = document.getElementById('planUsage');
+  const list = document.getElementById('plansList');
+  if(cur){
+    cur.innerHTML = `
+      <span>${(me&&me.username)||'user'}</span>
+      <span class="badge badge-${(me&&me.plan)||'free'}">${(me&&me.plan)||'free'}</span>
+    `;
+  }
+  if(usageBox){
+    const mu = (usage&&usage.minutes_used)||0;
+    const jt = (usage&&usage.jobs_total)||0;
+    usageBox.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <strong>Использование за месяц</strong>
+        <span class="muted" style="font-size:13px">period: ${(usage&&usage.period)||''}</span>
+      </div>
+      <div class="row" style="justify-content:flex-start; gap:12px; margin-top:8px">
+        <span class="badge" style="background:rgba(255,255,255,.06)">минуты: ${mu}</span>
+        <span class="badge" style="background:rgba(255,255,255,.06)">задачи: ${jt}</span>
+      </div>
+    `;
+  }
+  if(list){
+    list.innerHTML = '';
+    for(const p of (plans||[])){
+      const card = document.createElement('div');
+      card.className = 'plan-card';
+      const isCurrent = String((me&&me.plan)||'free') === String(p.id||'');
+      card.innerHTML = `
+        <div class="plan-header">
+          <span class="plan-name">${p.name||p.id}</span>
+          <span class="badge badge-${p.id}">${p.id}</span>
+        </div>
+        <div class="plan-limit">лимит: ${p.minutes_per_month||0} мин/мес</div>
+        <div class="plan-actions">
+          <button class="btn btn-primary" ${isCurrent?'disabled':''}>${isCurrent?'Текущий план':'Выбрать'}</button>
+        </div>
+      `;
+      const btn = card.querySelector('button.btn.btn-primary');
+      if(btn && !isCurrent){ btn.onclick = ()=> changePlan(String(p.id||'')); }
+      list.appendChild(card);
+    }
+  }
+}
+
+async function changePlan(planId){
+  try{
+    const r = await auth.fetchWithAuth('/api/subscription/change-plan', {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ plan: planId })
+    });
+    if(!r.ok){ return showError('Не удалось сменить план'); }
+    const me = await r.json();
+    try{ localStorage.setItem('s2md_user', JSON.stringify(me)); }catch{}
+    updateHeaderAuth();
+    showSuccess('План обновлён');
+    loadPlanData();
+  }catch{ showError('сетевой улетел'); }
+}
+
+
 </script>
 <!-- p5.js CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
