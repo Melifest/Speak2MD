@@ -276,12 +276,15 @@
         <div class="row">
           <a id="dlMd" class="btn btn-primary" download>Скачать .md</a>
           <a id="dlJson" class="btn btn-ghost" download>JSON</a>
+          <button class="btn btn-ghost" id="share-btn">🔗 Поделиться</button>
         </div>
       </div>
       <pre id="preview" class="preview" aria-label="Предпросмотр Markdown (сырой)"></pre>
       <div id="rendered" class="preview" aria-label="Рендер Markdown (красивый)" style="display:none"></div>
     </section>
   </main>
+
+  
 
   <section class="container">
     <div class="features-grid">
@@ -478,6 +481,25 @@ async function loadResult(){
   dlJson.href = `/api/result/${jobId}?format=json`;
 }
 
+const shareBtn = document.getElementById('share-btn');
+if(shareBtn){
+  shareBtn.onclick = async ()=>{
+    if(!jobId) return;
+    try{
+      const r = await auth.fetchWithAuth('/api/share/' + jobId, { method:'POST' });
+      if(!r.ok){ return showError('не удалось создать ссылку'); }
+      const data = await r.json();
+      const full = data && data.url ? (data.url.startsWith('http') ? data.url : (location.origin + data.url)) : '';
+      const inp = document.getElementById('shareUrlInput'); if(inp){ inp.value = full; }
+      const exp = document.getElementById('shareExpires'); if(exp){ exp.textContent = data.expires_at ? ('Доступ до: ' + new Date(data.expires_at).toLocaleString('ru-RU')) : ''; }
+      try{ const tok = String((data.url||'').split('/').pop()||''); const open = document.getElementById('btnShareOpen'); if(open && tok){ const vu = location.origin + '/share/' + tok; open.href = vu; if(inp){ inp.value = vu; } } }catch{}
+      showModal('modalShare');
+    }catch{ showError('сетевой улетел'); }
+  };
+}
+
+ 
+
 /* ====== Мелкая полировка: клавиатура для dropzone ====== */
 dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); fileInput.click(); }});
 
@@ -486,6 +508,7 @@ function showModal(id){
   document.getElementById(id).classList.remove("hidden");
   if(id === "modalRegister"){ const b = document.getElementById("btnRegisterSubmit"); if(b) b.onclick = doRegister; }
   if(id === "modalLogin"){ const b = document.getElementById("btnLoginSubmit"); if(b) b.onclick = doLogin; }
+  if(id === "modalShare"){ const b = document.getElementById("btnShareCopy"); if(b) b.onclick = async ()=>{ const val = (document.getElementById('shareUrlInput')||{}).value || ''; try{ await navigator.clipboard.writeText(val); showSuccess('Ссылка скопирована'); } catch{ try{ const i = document.getElementById('shareUrlInput'); if(i){ i.select(); document.execCommand('copy'); showSuccess('Ссылка скопирована'); } } catch{ showError('не удалось скопировать'); } } }; }
 }
 
 function hideModal(id){
@@ -776,6 +799,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   if(back){ back.onclick = ()=>{ const sec=document.getElementById('transcriptsSec'); if(sec) sec.style.display='none'; const hero=document.querySelector('main.container.hero'); if(hero) hero.style.display='block'; } };
   try{ await fetchAndSaveUser(); }catch{}
   updateHeaderAuth(); //восстановим состояние
+  
 });
 
 // p5.js trailing grid implementation will be loaded below
@@ -875,6 +899,19 @@ new p5(sketch);
     <input id="regPassword" type="password" placeholder="Пароль">
     <button id="btnRegisterSubmit" class="btn btn-primary">Зарегистрироваться</button>
     <button class="btn btn-ghost" onclick="hideModal('modalRegister')">Закрыть</button>
+  </div>
+</div>
+
+<div id="modalShare" class="modal hidden">
+  <div class="modal-box">
+    <h3>Поделиться</h3>
+    <input id="shareUrlInput" type="text" readonly placeholder="Ссылка">
+    <div id="shareExpires" class="muted" style="font-size:13px"></div>
+    <div class="row" style="justify-content:flex-end">
+      <a id="btnShareOpen" class="btn btn-ghost" target="_blank">Открыть</a>
+      <button id="btnShareCopy" class="btn btn-primary">Скопировать</button>
+      <button class="btn btn-ghost" onclick="hideModal('modalShare')">Закрыть</button>
+    </div>
   </div>
 </div>
 

@@ -127,3 +127,10 @@ def index():
     if os.path.exists(index_path):
         return FileResponse(index_path, media_type="text/html")
     return HTMLResponse("<pre>Index not found</pre>", status_code=404)
+
+@app.get("/share/{token}", response_class=HTMLResponse)
+def share_view(token: str):
+    share_path = os.path.join(static_dir, "share.html")
+    if os.path.exists(share_path):
+        return FileResponse(share_path, media_type="text/html")
+    return HTMLResponse("<pre>Share viewer not found</pre>", status_code=404)

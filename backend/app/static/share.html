@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Speak2MD — общий просмотр</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg1:#0D1117; --bg2:#161B22; --text:#C9D1D9; --muted:#8B949E; --border:#30363D; --accent:#58A6FF; --accent2:#1F6FEB; --success:#3FB950; --radius:14px; --container:880px }
+  body{ margin:0; color:var(--text); font:400 16px/1.5 Inter,system-ui,sans-serif; min-height:100vh; background: linear-gradient(135deg, #050d33, #2974a3) }
+  .container{ max-width:var(--container); margin:0 auto; padding:24px }
+  .header{ display:flex; justify-content:space-between; align-items:center; padding:14px 24px; border-bottom:1px solid var(--border); background:rgba(13,17,23,.72) }
+  .logo{ font-weight:700; font-size:20px; color:#fff; text-decoration:none; display:flex; align-items:center; gap:10px }
+  .logo-icon{ width:24px; height:24px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius:6px; box-shadow:0 0 12px var(--accent) }
+  .panel{ background: rgba(22,27,34,.65); backdrop-filter: blur(24px); border-radius:24px; padding:32px; box-shadow: 0 24px 60px -12px rgba(0,0,0,.6); border:1px solid transparent }
+  .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap }
+  .btn{ display:inline-flex; align-items:center; gap:8px; border:0; border-radius:10px; padding:10px 14px; font-weight:500; cursor:pointer; transition:transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, background .18s ease, color .18s ease }
+  .btn:active{ transform: translateY(1px) }
+  .btn-primary{ background:linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%); color:#fff }
+  .btn-ghost{ background:transparent; color:var(--accent); border:1px solid rgba(88,166,255,.18) }
+  .btn-primary:hover{ background:linear-gradient(90deg, #1F6FEB 0%, var(--accent2) 100%) }
+  .btn-ghost:hover{ background:rgba(88,166,255,.06); border-color:var(--accent); color:#fff }
+  .preview{ background:#050608; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:24px; white-space:pre-wrap; font-family:'JetBrains Mono', monospace; font-size:13px; line-height:1.6; color:#d1d5db }
+  .muted{ color:var(--muted) }
+</style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo"><div class="logo-icon"></div>Speak2MD</a>
+    <div class="row">
+      <a id="dlMd" class="btn btn-primary" download>Скачать .md</a>
+      <a id="dlJson" class="btn btn-ghost" download>JSON</a>
+      <button id="copyBtn" class="btn btn-ghost">Скопировать ссылку</button>
+    </div>
+  </header>
+  <main class="container">
+    <section class="panel">
+      <div id="render" class="preview"></div>
+      <div id="expires" class="muted" style="margin-top:10px"></div>
+    </section>
+  </main>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  async function init(){
+    const path = location.pathname || '';
+    const tok = path.split('/').filter(Boolean).pop();
+    if(!tok) return;
+    const mdUrl = `/api/share/${tok}?format=markdown`;
+    const jsonUrl = `/api/share/${tok}?format=json`;
+    const dlMd = document.getElementById('dlMd'); if(dlMd){ dlMd.href = mdUrl }
+    const dlJson = document.getElementById('dlJson'); if(dlJson){ dlJson.href = jsonUrl }
+    try{
+      const r = await fetch(mdUrl);
+      if(!r.ok) return;
+      const text = await r.text();
+      const el = document.getElementById('render');
+      if(window.marked){ el.innerHTML = window.marked.parse(text); }
+      else{ el.textContent = text }
+    }catch{}
+    const copyBtn = document.getElementById('copyBtn'); if(copyBtn){ copyBtn.onclick = async ()=>{ try{ await navigator.clipboard.writeText(location.href) }catch{} } }
+  }
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
